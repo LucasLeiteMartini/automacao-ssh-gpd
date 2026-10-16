@@ -1,35 +1,44 @@
 ================================================================================
-CONTEXT — AUTOMACAO DE TERMINAL LEGADO VIA SSH
+CONTEXT — AUTOMACAO DE TERMINAL IBM TN3270 (PW3270 / LIB3270)
 ================================================================================
 
 1. VISAO GERAL E CASOS DE USO
 --------------------------------------------------------------------------------
 
 1.1. Cenario Atual:
-- Usuarios conectam-se via SSH utilizando um emulador de terminal.
-- Ao conectar, a tela da aplicacao interativa aparece imediatamente (interface
-  baseada em caracteres e menus executando 24/7).
+- Usuarios conectam-se ao mainframe via protocolo IBM TN3270 utilizando o emulador
+  pw3270 (ou lib3270/s3270).
+- Ao conectar, a tela da aplicacao 3270 e apresentada em matriz estatica 24x80
+  com campos protegidos/desprotegidos.
+- A comunicacao e orientada a blocos: caracteres digitados ficam em buffer local
+  e a transmissao para o host ocorre apenas quando uma tecla de AID (Attention
+  Identifier: Enter, PF1..PF24) e pressionada.
 - O fluxo de trabalho tradicional exige interacao humana constante por meio de
   digitacao de opcoes, credenciais e parametros.
 
 1.2. Fluxo Funcional Original (Caso de Uso Base):
-1. Conexao Inicial: Estabelece conexao via SSH e recebe a tela de abertura.
+1. Conexao Inicial: Estabelece sessao TN3270 no host/porta configurados.
 2. Autenticacao:
-   - Seleciona a opcao inicial destinada a autenticacao.
-   - Informa Matricula e Senha do operador (usuario com acesso ao sistema).
+   - Recebe a tela de Login (gatilho identificado na matriz 24x80).
+   - Informa Matricula e Senha nos campos desprotegidos correspondentes.
+   - Envia tecla de acao Enter (AID).
 3. Navegacao nos Menus:
-   - No menu principal (opcoes de 1 a 6), seleciona a opcao 5.
-   - No submenu subsequente, seleciona a opcao 10.
+   - No menu principal, seleciona a opcao 5 e envia Enter.
+   - No submenu subsequente, seleciona a opcao 10 e envia Enter.
 4. Consulta do Solicitante (Campos Horizontais):
    - O sistema solicita em sequencia horizontal: Matricula, Digito e Sequencia
      (dados pertencentes ao solicitante do processo).
+   - Preenche as coordenadas dos campos e envia Enter.
 5. Listagem e Selecao:
-   - O sistema exibe a lista de registros vinculados ao conjunto informado.
-   - O usuario marca os registros desejados com o caractere 'X' e aperta Enter.
+   - O sistema exibe a lista de registros vinculados ao solicitante na matriz 24x80.
+   - O usuario marca os registros desejados com o caractere 'X' na coluna de selecao
+     e aperta Enter. No 3270, varios registros podem ser marcados simultaneamente
+     no buffer antes do envio.
 6. Apresentacao e Extracao:
-   - A tela muda exibindo todos os valores detalhados do primeiro registro marcado.
-   - Os demais registros selecionados sao apresentados em sequencia apos cada
-     confirmacao no terminal.
+   - O mainframe apresenta a tela detalhada do primeiro registro marcado.
+   - Apos a leitura dos campos, envia Enter (ou PF correspondente) para avancar
+     para o proximo registro selecionado, ate concluir todos os marcados.
+   - Finaliza com logout ordenado (ex: PF3).
 
 
 2. RESTRICOES TECNICAS DO SISTEMA LEGADO
@@ -37,29 +46,22 @@ CONTEXT — AUTOMACAO DE TERMINAL LEGADO VIA SSH
 
 1. Sessao Unica por Credencial (Monousuario Concorrente):
    - O sistema nao permite logins simultaneos com a mesma matricula de operador.
-     Se houver uma sessao ativa e outra tentar entrar, a segunda conexao e
-     imediatamente barrada com aviso de usuario ja conectado.
    - Risco de Sessao Presa: Caso a conexao caia sem encerramento formal ou o
-     script seja abortado sem logout, o operador permanece travado no servidor
+     script seja abortado sem logout, o operador permanece travado no mainframe
      ate a expiracao da sessao.
 
-2. Interface Baseada em Terminal com Estado (Stateful / PTY):
-   - A aplicacao depende de dimensoes de tela controladas (ex: VT100 com 80x24)
-     e envia sequencias de escape ANSI para formatacao de cores e cursor.
-   - A resposta do sistema legado para carregar as telas e imediata apos a
-     confirmacao (Enter).
+2. Interface Baseada em Matriz Estatica 24x80 (TN3270):
+   - A aplicacao opera em grade fixa de 24 linhas por 80 colunas (1-indexed).
+   - Nao ha fluxo continuo de bytes tipo terminal VT100/ANSI ('\n' nao envia comando).
+   - Apenas o envio de teclas AID (Enter, PF) transmite o buffer dos campos alterados.
 
 3. Incompatibilidade Direta com Navegadores:
-   - Navegadores web nao abrem conexoes SSH ou sockets TCP diretamente. Uma
-     camada de backend (API) intermediaria em Python e mandatoria.
+   - Navegadores web nao abrem sockets TN3270 diretamente. Uma camada de backend
+     (FastAPI em Python) intermediaria e mandatoria.
 
 4. Divergencia Real vs. Mock (Parametrizacao Necessaria):
-   - A estrutura real de perguntas/prompts da aplicacao legado, as credenciais
-     esperadas e o formato exato dos campos/registros NAO sao identicos aos que
-     estao definidos nos mocks e no prototipo inicial.
-   - O design do backend deve isolar prompts/triggers de navegacao, credenciais e
-     parsers de tela (regex/layout) em configuracoes e modulos dedicados, permitindo
-     ajuste rapido assim que os dados e fluxos do ambiente real forem homologados.
+   - As coordenadas exatas (linha, coluna), mascaras de campos e gatilhos de tela
+     estao desacoplados no modulo `parsers.py` e configuracoes de ambiente.
 
 
 3. DECISOES ARQUITETURAIS E ESTRUTURAIS
@@ -68,56 +70,61 @@ CONTEXT — AUTOMACAO DE TERMINAL LEGADO VIA SSH
 3.1. Arquitetura Stateless em Duas Fases:
 Para respeitar a restricao de usuario unico e evitar bloquear a credencial
 enquanto o operador decide visualmente no navegador, foi descartada a
-manutencao de conexoes SSH abertas em memoria. Adotou-se o modelo em duas fases:
+manutencao de conexoes 3270 abertas em memoria:
 
 - Fase 1 (Busca da Lista de Registros):
   1. Front-end envia Matricula, Digito e Sequencia via HTTP.
-  2. Backend adquire a trava de concorrencia, abre o SSH, autentica, navega
-     pelos menus 5 e 10, preenche a busca e le a lista de registros.
-  3. Backend executa o logout, encerra o canal SSH e libera a trava.
-  4. Retorna a lista de itens disponiveis em JSON (retencao: ~1,5 a 2,0s).
+  2. Backend adquire a trava assincrona (operator_lock), conecta a sessao 3270,
+     autentica, navega ate a consulta e le a lista na matriz 24x80.
+  3. Backend executa o logout (PF3), desconecta e libera o lock.
+  4. Retorna a lista de itens disponiveis em JSON (retencao da credencial: < 2s).
 
 - Fase 2 (Extracao dos Detalhes dos Itens Marcados):
   1. O usuario seleciona os registros desejados via checkboxes na interface web
      sem limite de tempo.
   2. Front-end envia os dados do solicitante acompanhados dos indices marcados.
-  3. Backend adquire a trava de concorrencia, abre nova sessao SSH rapida,
-     navega ate a lista, posiciona e envia 'X' nos itens selecionados, confirma
-     com Enter, extrai os dados detalhados, executa o logout e fecha a conexao.
-  4. Retorna os dados detalhados consolidados em JSON (retencao: ~2,0 a 3,0s).
+  3. Backend adquire a trava (operator_lock), abre nova sessao 3270 rapida,
+     navega ate a lista, marca 'X' em cada registro selecionado no buffer,
+     envia Enter, extrai os detalhes de cada registro sequencialmente,
+     executa o logout (PF3) e fecha a sessao.
+  4. Retorna os dados detalhados consolidados em JSON.
 
 3.2. Fila Sequencial com Lock Assincrono (Mutex):
-- O backend implementa um controle de concorrencia (asyncio.Lock) para a
-  credencial do operador.
-- Requisicoes concorrentes aguardam em fila temporizada em vez de tentar logins
-  simultaneos que gerariam colisao no servidor legado.
+- O backend implementa controle de concorrencia (`asyncio.Lock`) para a
+  credencial do operador. Requisicoes concorrentes aguardam com timeout configuravel.
 
 3.3. Robustez e Fechamento Seguro (try...finally):
-- Toda comunicacao com o PTY do Paramiko deve estar envolvida em blocos try...finally.
-- Em caso de timeout ou falha de leitura, o bloco finally garante o envio de
-  comandos de cancelamento/saida e o fechamento do canal e do cliente SSH.
-- Deteccao explicita da mensagem de "usuario ja conectado", retornando erro HTTP
-  423/503 com instrucao de nova tentativa.
+- Toda operacao de driver 3270 e envolvida em blocos `try...finally`.
+- Em caso de timeout ou excecao, o `finally` tenta deslogar (PF3) e invoca `disconnect()`.
+
+3.4. Camada de Abstracao de Driver 3270:
+- `Base3270Driver`: Interface abstrata definindo operacoes de matriz (send_string,
+  send_enter, send_pf, get_string, get_screen_lines, wait_for_string).
+- `Mock3270Driver`: Simulador em memoria de alta fidelidade para testes e desenvolvimento
+  sem necessidade de mainframe real ou C-bindings.
+- `Pw3270Driver`: Driver nativo utilizando `python3-tn3270` (`lib3270`/`pw3270`).
+- `Py3270Driver`: Driver fallback baseado em `s3270` (`py3270`).
 
 
 4. ESTRUTURA DO MONOREPO
 --------------------------------------------------------------------------------
 
 /
-├── CONTEXT.txt (ou CONTEXT.md)
+├── CONTEXT.txt
 ├── back-end/
-│   ├── app/
-│   │   ├── api/          # Endpoints FastAPI
-│   │   ├── core/         # Configuracoes de ambiente e trava de concorrencia
-│   │   ├── driver/       # Driver Paramiko, emulacao PTY e sanitizacao ANSI
-│   │   └── schemas/      # Modelos de dados Pydantic
-│   ├── tests/            # Simulador de terminal e testes automatizados
-│   ├── requirements.txt
-│   └── main.py
+│   ├── pyproject.toml    # Gerenciado com UV (Python 3.13)
+│   ├── src/automacao/
+│   │   ├── api/          # Endpoints FastAPI (rotas de solicitante)
+│   │   ├── core/         # Configuracoes Pydantic-Settings e lock de concorrencia
+│   │   ├── driver/       # Interface 3270, Pw3270Driver, Py3270Driver, Mock3270Driver
+│   │   ├── schemas/      # Modelos Pydantic (requests e responses)
+│   │   └── services/     # Orquestracao do fluxo em 2 fases
+│   ├── tests/            # Testes pytest de concorrencia e integracao
+│   └── main.py           # Ponto de entrada Uvicorn
 └── front-end/
-    ├── src/              # Interface com formulario, checkboxes e tabelas
-    ├── package.json
-    └── ...
+    ├── package.json      # Gerenciado com Bun (Angular 22 + Bootstrap 5)
+    ├── proxy.conf.json   # Proxy de desenvolvimento para API FastAPI (porta 8000)
+    └── src/app/          # Componentes Angular standalone (busca, lista, detalhes)
 
 
 5. CONTRATOS DE DADOS DA API
