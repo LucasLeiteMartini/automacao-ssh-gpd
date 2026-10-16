@@ -1,0 +1,195 @@
+/* Core Bootstrap & Icons */
+@use "bootstrap/scss/bootstrap";
+@import "bootstrap-icons/font/bootstrap-icons.css";
+
+/* ==========================================================================
+   PALETAS DE CORES & VARIÁVEIS CSS (TEMA ESCURO PRETO/AMARELO & TEMA CLARO)
+   ========================================================================== */
+
+:root {
+  --primary-accent: #f59e0b;
+  --primary-accent-hover: #d97706;
+  --primary-accent-light: rgba(245, 158, 11, 0.15);
+  --primary-accent-glow: rgba(245, 158, 11, 0.35);
+  
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --border-radius-base: 0.75rem;
+  --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Tema Escuro (Preto profundo + Amarelo Dourado) */
+[data-bs-theme="dark"] {
+  --bs-body-bg: #090a0c;
+  --bs-body-color: #f1f3f5;
+  --surface-card: #13161a;
+  --surface-card-hover: #191d23;
+  --surface-card-active: rgba(245, 158, 11, 0.12);
+  --border-color: #232830;
+  --border-color-active: #f59e0b;
+  --text-muted: #8c96a3;
+  --navbar-bg: #0d0f12;
+  --badge-bg: #1e2229;
+  --sticky-bar-bg: rgba(13, 15, 18, 0.92);
+
+  .btn-warning {
+    background-color: #f59e0b;
+    border-color: #f59e0b;
+    color: #000000;
+    font-weight: 600;
+
+    &:hover, &:focus {
+      background-color: #fbbf24;
+      border-color: #fbbf24;
+      color: #000000;
+      box-shadow: 0 0 15px var(--primary-accent-glow);
+    }
+  }
+
+  .btn-outline-warning {
+    color: #fbbf24;
+    border-color: #f59e0b;
+
+    &:hover, &:focus {
+      background-color: #f59e0b;
+      border-color: #f59e0b;
+      color: #000000;
+    }
+  }
+}
+
+/* Tema Claro (Off-white / Slate suave + Âmbar Harmonioso) */
+[data-bs-theme="light"] {
+  --bs-body-bg: #f8fafc;
+  --bs-body-color: #0f172a;
+  --surface-card: #ffffff;
+  --surface-card-hover: #f1f5f9;
+  --surface-card-active: rgba(217, 119, 6, 0.08);
+  --border-color: #e2e8f0;
+  --border-color-active: #d97706;
+  --text-muted: #64748b;
+  --navbar-bg: #ffffff;
+  --badge-bg: #f1f5f9;
+  --sticky-bar-bg: rgba(255, 255, 255, 0.94);
+
+  .btn-warning {
+    background-color: #d97706;
+    border-color: #d97706;
+    color: #ffffff;
+    font-weight: 600;
+
+    &:hover, &:focus {
+      background-color: #b45309;
+      border-color: #b45309;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+    }
+  }
+
+  .btn-outline-warning {
+    color: #b45309;
+    border-color: #d97706;
+
+    &:hover, &:focus {
+      background-color: #d97706;
+      border-color: #d97706;
+      color: #ffffff;
+    }
+  }
+}
+
+/* ==========================================================================
+   MOBILE-FIRST ENHANCEMENTS & UI UTILITIES
+   ========================================================================== */
+
+body {
+  font-family: var(--font-family-sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Evita auto-zoom incômodo em iOS quando o usuário clica em inputs */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Container do App com espaçamento equilibrado para Mobile e Desktop */
+.app-container {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+  padding-bottom: 6rem; /* Espaço para barra flutuante mobile */
+
+  @media (min-width: 768px) {
+    padding: 2rem 1.5rem;
+    padding-bottom: 3rem;
+  }
+}
+
+/* Cards estilizados e touch-friendly */
+.custom-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-base);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: var(--transition-smooth);
+
+  &.card-interactive {
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background-color: var(--surface-card-hover);
+      border-color: var(--primary-accent);
+    }
+
+    &.selected {
+      background-color: var(--surface-card-active);
+      border-color: var(--border-color-active);
+      box-shadow: 0 0 0 1px var(--border-color-active);
+    }
+  }
+}
+
+/* Barra inferior flutuante para ações no mobile (Sticky Bottom Action Bar) */
+.sticky-bottom-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--sticky-bar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  z-index: 1030;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
+
+  @media (min-width: 768px) {
+    position: static;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Animações suaves para loading e transições */
+.fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
