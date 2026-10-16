@@ -4,33 +4,29 @@ cliente_automacao_ssh.py
 Robô para automação de terminal interativo usando Paramiko (ou socket direto para testes).
 """
 
-import os
 import re
 import socket
 import time
 
 import paramiko
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # ================= CONFIGURAÇÕES =================
 MODO_TESTE_LOCAL = True  # Mude para False para rodar em SSH real
 
 # Credenciais do Servidor / SSH
-SSH_HOST = os.environ.get("SSH_HOST")
-SSH_PORT = os.environ.get("SSH_HOST")
-SSH_USER = os.environ.get("SSH_USER")
-SSH_PASS = os.environ.get("SSH_PASS")
+SSH_HOST = "172.16.5.13"
+SSH_PORT = 2222
+SSH_USER = "root"
+SSH_PASS = "inforgpd2012*"
 
 # Credenciais da Aplicação (Operador)
-APP_MATRICULA = os.environ.get("APP_MATRICULA")
-APP_SENHA = os.environ.get("APP_SENHA")
+APP_MATRICULA = "OP-9876"
+APP_SENHA = "SenhaForte@2026"
 
 # Dados do Solicitante para Consulta
-SOLICITANTE_MATRICULA = os.environ.get("SOLICITANTE_MATRICULA")
-SOLICITANTE_DIGITO = os.environ.get("SOLICITANTE_DIGITO")
-SOLICITANTE_SEQUENCIA = os.environ.get("SOLICITANTE_SEQUENCIA")
+SOLICITANTE_MATRICULA = "123456"
+SOLICITANTE_DIGITO = "0"
+SOLICITANTE_SEQUENCIA = "1"
 
 # Índices que queremos marcar com 'X' na lista (ex: primeiro e terceiro)
 ITENS_PARA_MARCAR = [1, 3]

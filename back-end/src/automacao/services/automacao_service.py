@@ -1,6 +1,6 @@
 """
-Serviço de automação de terminal legado em duas fases.
-Executa os fluxos de consulta e extração de detalhes sob proteção do operador_lock.
+Serviço de automação de terminal mainframe IBM TN3270 em duas fases.
+Executa os fluxos de consulta e extração de detalhes em matriz 24x80 sob operator_lock.
 """
 
 import asyncio
@@ -10,46 +10,52 @@ from typing import Any, Dict, List
 from automacao.core.config import settings
 from automacao.core.security import operator_lock
 from automacao.driver import parsers
-from automacao.driver.terminal import TerminalDriver, conectar_terminal
+from automacao.driver.driver_3270_interface import Base3270Driver
+from automacao.driver.terminal import conectar_terminal_3270
 
-logger = logging.getLogger("automacao.service")
+logger = logging.getLogger("automacao.service.3270")
 
 
+# pylint: disable=too-many-locals
 def _navegar_ate_consulta_solicitante(
-    term: TerminalDriver,
+    driver: Base3270Driver,
     solicitante_matricula: str,
     solicitante_digito: str,
     solicitante_sequencia: str,
 ) -> None:
-    """Realiza o handshake de login e navega pelos menus até a tela de consulta do solicitante."""
-    # 1. Tela Inicial
-    term.esperar(parsers.PROMPT_INICIAL)
-    term.send(f"{parsers.OPCAO_LOGIN}\n")
+    """Navega pelos painéis do mainframe até a tela de consulta de solicitante."""
+    # 1. Tela de Login
+    driver.wait_for_string(parsers.GATILHO_TELA_LOGIN)
+    r_mat, c_mat = parsers.POS_LOGIN_MATRICULA
+    r_sen, c_sen = parsers.POS_LOGIN_SENHA
+    driver.send_string(settings.APP_MATRICULA, row=r_mat, col=c_mat)
+    driver.send_string(settings.APP_SENHA, row=r_sen, col=c_sen)
+    driver.send_enter()
 
-    # 2. Autenticação na Aplicação
-    term.esperar(parsers.PROMPT_LOGIN_MATRICULA)
-    term.send(f"{settings.APP_MATRICULA}\n")
+    # 2. Menu Principal
+    driver.wait_for_string(parsers.GATILHO_TELA_MENU)
+    r_menu, c_menu = parsers.POS_MENU_OPCAO
+    driver.send_string(parsers.VALOR_MENU_OPCAO, row=r_menu, col=c_menu)
+    driver.send_enter()
 
-    term.esperar(parsers.PROMPT_LOGIN_SENHA)
-    term.send(f"{settings.APP_SENHA}\n")
+    # 3. Submenu
+    driver.wait_for_string(parsers.GATILHO_TELA_SUBMENU)
+    r_sub, c_sub = parsers.POS_SUBMENU_OPCAO
+    driver.send_string(parsers.VALOR_SUBMENU_OPCAO, row=r_sub, col=c_sub)
+    driver.send_enter()
 
-    # 3. Menu Principal
-    term.esperar(parsers.PROMPT_MENU_PRINCIPAL)
-    term.send(f"{parsers.OPCAO_MENU_PRINCIPAL}\n")
+    # 4. Tela de Solicitante
+    driver.wait_for_string(parsers.GATILHO_TELA_SOLICITANTE)
+    r_smat, c_smat = parsers.POS_SOLICITANTE_MATRICULA
+    r_sdig, c_sdig = parsers.POS_SOLICITANTE_DIGITO
+    r_sseq, c_sseq = parsers.POS_SOLICITANTE_SEQUENCIA
+    driver.send_string(solicitante_matricula, row=r_smat, col=c_smat)
+    driver.send_string(solicitante_digito, row=r_sdig, col=c_sdig)
+    driver.send_string(solicitante_sequencia, row=r_sseq, col=c_sseq)
+    driver.send_enter()
 
-    # 4. Submenu
-    term.esperar(parsers.PROMPT_SUBMENU)
-    term.send(f"{parsers.OPCAO_SUBMENU}\n")
-
-    # 5. Entrada dos dados do solicitante
-    term.esperar(parsers.PROMPT_SOLICITANTE_MATRICULA)
-    term.send(f"{solicitante_matricula}\n")
-
-    term.esperar(parsers.PROMPT_SOLICITANTE_DIGITO)
-    term.send(f"{solicitante_digito}\n")
-
-    term.esperar(parsers.PROMPT_SOLICITANTE_SEQUENCIA)
-    term.send(f"{solicitante_sequencia}\n")
+    # 5. Aguarda tela de listagem
+    driver.wait_for_string(parsers.GATILHO_TELA_LISTA)
 
 
 def _executar_busca_registros_sync(
@@ -58,40 +64,21 @@ def _executar_busca_registros_sync(
     solicitante_sequencia: str,
 ) -> Dict[str, Any]:
     """
-    Fase 1 (Síncrona):
-    Conecta, navega, lê os registros disponíveis e sai graciosamente sem marcar nada.
+    Fase 1 (Síncrona TN3270):
+    Conecta ao mainframe, navega até a listagem, lê a matriz de registros e desconecta com PF3.
     """
-    term = conectar_terminal()
-    registros: List[Dict[str, Any]] = []
-
+    driver = conectar_terminal_3270()
     try:
         _navegar_ate_consulta_solicitante(
-            term, solicitante_matricula, solicitante_digito, solicitante_sequencia
+            driver, solicitante_matricula, solicitante_digito, solicitante_sequencia
         )
 
-        buffer_tela_registros = ""
-        while True:
-            gatilho, tela = term.esperar_um_dos([
-                parsers.PROMPT_ITEM_MARCAR,
-                "Nenhum registro selecionado",
-                parsers.PROMPT_ENCERRAMENTO_SESSAO,
-            ])
-            buffer_tela_registros += "\n" + tela
-            if gatilho == parsers.PROMPT_ITEM_MARCAR:
-                # Envia ENTER sem marcar com X para avançar
-                term.send("\n")
-            elif "Nenhum registro selecionado" in gatilho:
-                term.send("\n")
-                term.esperar(parsers.PROMPT_ENCERRAMENTO_SESSAO)
-                break
-            else:
-                break
+        registros = parsers.parse_lista_registros_3270(driver)
 
-        # Extrai itens do buffer acumulado
-        registros = parsers.parse_lista_registros(buffer_tela_registros)
-
+        # Envia PF3 para sair graciosamente
+        driver.send_pf(3)
     finally:
-        term.close()
+        driver.disconnect()
 
     return {
         "solicitante": {
@@ -110,68 +97,49 @@ def _executar_extracao_detalhes_sync(
     indices_selecionados: List[int],
 ) -> List[Dict[str, Any]]:
     """
-    Fase 2 (Síncrona):
-    Conecta, navega até a listagem, seleciona os índices informados com 'X',
-    e extrai os campos de cada tela de detalhe individual.
+    Fase 2 (Síncrona TN3270):
+    Conecta, navega até a listagem, preenche 'X' nas coordenadas dos registros selecionados,
+    envia AID Enter e lê as telas de detalhes sequenciais.
     """
-    term = conectar_terminal()
+    driver = conectar_terminal_3270()
     detalhes_extraidos: List[Dict[str, Any]] = []
 
     try:
         _navegar_ate_consulta_solicitante(
-            term, solicitante_matricula, solicitante_digito, solicitante_sequencia
+            driver, solicitante_matricula, solicitante_digito, solicitante_sequencia
         )
 
-        # Marcação dos registros
-        item_atual = 1
-        qtd_marcados = len(indices_selecionados)
-        tela_detalhe_inicial = None
+        itens_na_tela = parsers.parse_lista_registros_3270(driver)
 
-        while True:
-            gatilho, tela = term.esperar_um_dos([
-                parsers.PROMPT_ITEM_MARCAR,
-                "DETALHE DO REGISTRO",
-                "Nenhum registro selecionado",
-                parsers.PROMPT_ENCERRAMENTO_SESSAO,
-            ])
+        # Marca com 'X' as linhas correspondentes aos índices solicitados
+        qtd_marcados = 0
+        for item in itens_na_tela:
+            if item["indice"] in indices_selecionados:
+                driver.send_string("X", row=item["row"], col=item["check_col"])
+                qtd_marcados += 1
 
-            if gatilho == parsers.PROMPT_ITEM_MARCAR:
-                if item_atual in indices_selecionados:
-                    term.send("X\n")
-                else:
-                    term.send("\n")
-                item_atual += 1
-            else:
-                if gatilho == "DETALHE DO REGISTRO":
-                    tela_detalhe_inicial = tela
-                break
+        # Submete a tela com todos os registros marcados de uma só vez via Enter
+        driver.send_enter()
 
-        # Leitura sequencial das telas de detalhes
+        # Lê os detalhes de cada registro marcado
         for idx in range(1, qtd_marcados + 1):
-            if idx == 1 and tela_detalhe_inicial is not None:
-                tela_detalhe = tela_detalhe_inicial
-            else:
-                tela_detalhe = term.esperar(f"DETALHE DO REGISTRO ({idx} de {qtd_marcados})")
-
-            dados = parsers.parse_detalhe_registro(tela_detalhe)
+            driver.wait_for_string(parsers.GATILHO_TELA_DETALHE)
+            dados = parsers.parse_detalhe_registro_3270(driver)
             detalhes_extraidos.append(dados)
-            # Envia ENTER para avançar para a próxima tela
-            term.send("\n")
 
-        # Aguarda encerramento
-        try:
-            term.esperar(parsers.PROMPT_ENCERRAMENTO_SESSAO, timeout=2.0)
-        except Exception:
-            pass
+            if idx < qtd_marcados:
+                driver.send_enter()
 
+        # Encerramento seguro via PF3
+        driver.send_pf(3)
     finally:
-        term.close()
+        driver.disconnect()
 
     return detalhes_extraidos
 
 
 class AutomacaoService:
-    """Orquestrador assíncrono para os fluxos em duas fases sob mutex."""
+    """Orquestrador assíncrono para os fluxos TN3270 em duas fases sob mutex."""
 
     async def buscar_registros(
         self,
@@ -179,7 +147,7 @@ class AutomacaoService:
         digito: str,
         sequencia: str,
     ) -> Dict[str, Any]:
-        """Fase 1: Adquire a trava do operador e obtém a lista de registros."""
+        """Fase 1: Adquire a trava do operador e obtém a lista de registros via TN3270."""
         async with operator_lock.acquire():
             return await asyncio.to_thread(
                 _executar_busca_registros_sync, matricula, digito, sequencia
@@ -192,7 +160,7 @@ class AutomacaoService:
         sequencia: str,
         indices_selecionados: List[int],
     ) -> List[Dict[str, Any]]:
-        """Fase 2: Adquire a trava do operador e extrai detalhes dos itens marcados."""
+        """Fase 2: Adquire a trava do operador e extrai detalhes marcados via TN3270."""
         async with operator_lock.acquire():
             return await asyncio.to_thread(
                 _executar_extracao_detalhes_sync,
