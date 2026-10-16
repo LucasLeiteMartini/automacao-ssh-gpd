@@ -9,16 +9,28 @@ from pydantic import BaseModel, Field
 
 class SolicitanteIdentificacao(BaseModel):
     """Dados de identificação horizontal do solicitante."""
-    matricula: str = Field(..., description="Matrícula do solicitante")
-    digito: str = Field(..., description="Dígito verificador do solicitante")
-    sequencia: str = Field(..., description="Sequência da solicitação")
+    matricula: str = Field(
+        ..., pattern=r"^\d{6}$", description="Matrícula com 6 dígitos numéricos"
+    )
+    digito: str = Field(
+        ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
+    )
+    sequencia: str = Field(
+        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+    )
 
 
 class ConsultaRegistrosRequest(BaseModel):
     """Corpo da requisição para listagem de registros da Fase 1."""
-    matricula: str = Field(..., description="Matrícula do solicitante")
-    digito: str = Field(..., description="Dígito verificador do solicitante")
-    sequencia: str = Field(..., description="Sequência da solicitação")
+    matricula: str = Field(
+        ..., pattern=r"^\d{6}$", description="Matrícula com 6 dígitos numéricos"
+    )
+    digito: str = Field(
+        ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
+    )
+    sequencia: str = Field(
+        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+    )
 
 
 class RegistroItem(BaseModel):
@@ -36,9 +48,15 @@ class ConsultaRegistrosResponse(BaseModel):
 
 class DetalhesRequest(BaseModel):
     """Corpo da requisição para extração de detalhes da Fase 2."""
-    matricula: str = Field(..., description="Matrícula do solicitante")
-    digito: str = Field(..., description="Dígito verificador do solicitante")
-    sequencia: str = Field(..., description="Sequência da solicitação")
+    matricula: str = Field(
+        ..., pattern=r"^\d{6}$", description="Matrícula com 6 dígitos numéricos"
+    )
+    digito: str = Field(
+        ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
+    )
+    sequencia: str = Field(
+        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+    )
     indices_selecionados: List[int] = Field(
         ...,
         description="Lista de índices numéricos para marcar com 'X'",
