@@ -1,162 +1,211 @@
-"""
-Driver de baixo nível para comunicação com o terminal interativo (Paramiko VT100 ou Raw Socket).
-Garante fechamento seguro, cadência de digitação e tratamento de timeouts e erros de sessão.
-"""
+"""Módulo de conexão e factory para drivers de terminal IBM TN3270 (pw3270, py3270, mock)."""
+# pylint: disable=broad-exception-caught,import-outside-toplevel
 
-import socket
-import time
-from typing import Optional
-
-import paramiko
+import logging
+from typing import List, Optional, Tuple
 
 from automacao.core.config import Settings, settings
-from automacao.core.security import TerminalTimeoutError, UsuarioJaConectadoError
-from automacao.driver.ansi import limpar_ansi
-from automacao.driver.parsers import GATILHO_ACESSO_NEGADO, GATILHO_USUARIO_CONECTADO
+from automacao.driver.driver_3270_interface import Base3270Driver
+from automacao.driver.mock_3270 import Mock3270Driver
+
+logger = logging.getLogger("automacao.driver.3270")
 
 
-class TerminalDriver:
-    """Wrapper para padronizar o envio e leitura via Paramiko Channel ou Raw Socket."""
+class Pw3270Driver(Base3270Driver):
+    """Driver que utiliza as ligações Python nativas do pw3270 / lib3270 (python3-tn3270)."""
 
-    def __init__(self, stream, ssh_client: Optional[paramiko.SSHClient] = None):
-        self.stream = stream
-        self.ssh_client = ssh_client
-        self.buffer_acumulado = ""
-
-    def send(self, data: str, delay: Optional[float] = None) -> None:
-        """Envia comandos para o terminal com pequena cadência para evitar buffer overflow no legado."""
-        pausa = delay if delay is not None else settings.CADENCIA_ENVIO_SEGUNDOS
-        if pausa > 0:
-            time.sleep(pausa)
-
-        payload = data.encode("utf-8")
-        if hasattr(self.stream, "sendall"):
-            self.stream.sendall(payload)
-        else:
-            self.stream.send(payload)
-
-    def esperar(self, texto_gatilho: str, timeout: Optional[float] = None) -> str:
-        """Lê o buffer até encontrar o texto_gatilho ou atingir o timeout."""
-        tempo_limite = timeout if timeout is not None else settings.TERMINAL_TIMEOUT_SECONDS
-        inicio = time.time()
-        buffer = ""
-
-        while time.time() - inicio < tempo_limite:
-            chunk = ""
-            if hasattr(self.stream, "recv_ready"):
-                if self.stream.recv_ready():
-                    chunk = self.stream.recv(1024).decode("utf-8", errors="ignore")
-            else:
-                self.stream.settimeout(0.5)
-                try:
-                    chunk = self.stream.recv(1024).decode("utf-8", errors="ignore")
-                except socket.timeout:
-                    chunk = ""
-
-            if chunk:
-                buffer += chunk
-                buffer_limpo = limpar_ansi(buffer)
-
-                # Checagem de mensagens de erro críticas do sistema legado
-                if GATILHO_USUARIO_CONECTADO.lower() in buffer_limpo.lower():
-                    raise UsuarioJaConectadoError(
-                        "Operador já conectado no sistema legado. Aguarde encerramento da sessão."
-                    )
-                if GATILHO_ACESSO_NEGADO.lower() in buffer_limpo.lower():
-                    raise PermissionError("Acesso negado no sistema legado.")
-
-                if texto_gatilho in buffer_limpo:
-                    self.buffer_acumulado += buffer
-                    return buffer_limpo
-
-            time.sleep(0.05)
-
-        raise TerminalTimeoutError(
-            f"Timeout ({tempo_limite}s) aguardando por '{texto_gatilho}'. "
-            f"Buffer recebido:\n{limpar_ansi(buffer)}"
-        )
-
-    def esperar_um_dos(self, gatilhos: list[str], timeout: Optional[float] = None) -> tuple[str, str]:
-        """Lê o buffer até encontrar qualquer um dos gatilhos especificados. Retorna (gatilho_encontrado, buffer_limpo)."""
-        tempo_limite = timeout if timeout is not None else settings.TERMINAL_TIMEOUT_SECONDS
-        inicio = time.time()
-        buffer = ""
-
-        while time.time() - inicio < tempo_limite:
-            chunk = ""
-            if hasattr(self.stream, "recv_ready"):
-                if self.stream.recv_ready():
-                    chunk = self.stream.recv(1024).decode("utf-8", errors="ignore")
-            else:
-                self.stream.settimeout(0.5)
-                try:
-                    chunk = self.stream.recv(1024).decode("utf-8", errors="ignore")
-                except socket.timeout:
-                    chunk = ""
-
-            if chunk:
-                buffer += chunk
-                buffer_limpo = limpar_ansi(buffer)
-
-                # Checagem de mensagens de erro críticas do sistema legado
-                if GATILHO_USUARIO_CONECTADO.lower() in buffer_limpo.lower():
-                    raise UsuarioJaConectadoError(
-                        "Operador já conectado no sistema legado. Aguarde encerramento da sessão."
-                    )
-                if GATILHO_ACESSO_NEGADO.lower() in buffer_limpo.lower():
-                    raise PermissionError("Acesso negado no sistema legado.")
-
-                for g in gatilhos:
-                    if g in buffer_limpo:
-                        self.buffer_acumulado += buffer
-                        return g, buffer_limpo
-
-            time.sleep(0.05)
-
-        raise TerminalTimeoutError(
-            f"Timeout ({tempo_limite}s) aguardando por qualquer um dos gatilhos {gatilhos}. "
-            f"Buffer recebido:\n{limpar_ansi(buffer)}"
-        )
-
-    def close(self) -> None:
-        """Encerra com segurança o canal e o cliente SSH/socket associados."""
+    def __init__(self, session_name: str = ":a"):
         try:
-            if hasattr(self.stream, "close"):
-                self.stream.close()
+            import tn3270  # type: ignore[import-not-found]
+            self.lib = tn3270
+            self.session = tn3270.Session(session_name)
+        except ImportError as exc:
+            raise ImportError(
+                "O módulo nativo 'tn3270' (python3-tn3270/lib3270) não está instalado no sistema."
+            ) from exc
+
+    def connect(self, host: str, port: int = 23, timeout: float = 15.0) -> None:
+        url = f"tn3270://{host}:{port}"
+        self.session.connect(url, int(timeout))
+        if not self.is_connected():
+            raise ConnectionError(f"Falha ao conectar via pw3270 ao host {url}")
+
+    def disconnect(self) -> None:
+        try:
+            self.session.disconnect()
         except Exception:
             pass
 
-        if self.ssh_client is not None:
+    def is_connected(self) -> bool:
+        return bool(getattr(self.session, "connected", False))
+
+    def send_string(self, value: str, row: Optional[int] = None, col: Optional[int] = None) -> None:
+        if row is not None and col is not None:
+            # pw3270 get/set usa linha e coluna
             try:
-                self.ssh_client.close()
+                self.session.cursor = (row, col)
             except Exception:
                 pass
+        self.session.set(value)
 
-    def __enter__(self):
-        return self
+    def send_enter(self) -> None:
+        self.session.enter()
+        self.wait_for_ready()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    def send_pf(self, key_number: int) -> None:
+        if hasattr(self.session, "pfkey"):
+            self.session.pfkey(key_number)
+        else:
+            self.session.enter()
+        self.wait_for_ready()
+
+    def send_clear(self) -> None:
+        if hasattr(self.session, "clear"):
+            self.session.clear()
+
+    def get_string(self, row: int, col: int, length: int) -> str:
+        # pw3270 get(row, col, length)
+        return str(self.session.get(row, col, length))
+
+    def get_screen_lines(self) -> List[str]:
+        lines: List[str] = []
+        for r in range(1, 25):
+            lines.append(self.get_string(r, 1, 80))
+        return lines
+
+    def find_string(self, text: str) -> Optional[Tuple[int, int]]:
+        res = self.session.find(text)
+        if res:
+            return (res[0], res[1]) if isinstance(res, (tuple, list)) else None
+        return None
+
+    def wait_for_string(
+        self,
+        text: str,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        timeout: float = 15.0,
+    ) -> bool:
+        try:
+            if hasattr(self.session, "wait_for_string"):
+                return bool(self.session.wait_for_string(text, int(timeout)))
+        except Exception:
+            pass
+        return True
+
+    def wait_for_ready(self, timeout: float = 15.0) -> None:
+        if hasattr(self.session, "wait"):
+            self.session.wait(int(timeout))
 
 
-def conectar_terminal(config: Optional[Settings] = None) -> TerminalDriver:
-    """Cria e retorna uma conexão com o terminal legado baseada nas configurações."""
+class Py3270Driver(Base3270Driver):
+    """Driver alternativo que utiliza py3270 / s3270 headless."""
+
+    def __init__(self):
+        try:
+            from py3270 import Emulator  # type: ignore[import-untyped]
+            self.em = Emulator(visible=False)
+        except Exception as exc:
+            raise ImportError(
+                "O pacote py3270 requer o binário 's3270' instalado no sistema operacional."
+            ) from exc
+
+    def connect(self, host: str, port: int = 23, timeout: float = 15.0) -> None:
+        target = f"{host}:{port}" if port != 23 else host
+        self.em.connect(target)
+        self.wait_for_ready(timeout)
+
+    def disconnect(self) -> None:
+        try:
+            self.em.terminate()
+        except Exception:
+            pass
+
+    def is_connected(self) -> bool:
+        return self.em.is_connected()
+
+    def send_string(self, value: str, row: Optional[int] = None, col: Optional[int] = None) -> None:
+        self.em.send_string(value, ypos=row, xpos=col)
+
+    def send_enter(self) -> None:
+        self.em.send_enter()
+        self.wait_for_ready()
+
+    def send_pf(self, key_number: int) -> None:
+        self.em.send_pf(key_number)
+        self.wait_for_ready()
+
+    def send_clear(self) -> None:
+        if hasattr(self.em, "send_clear"):
+            getattr(self.em, "send_clear")()
+        elif hasattr(self.em, "exec_command"):
+            getattr(self.em, "exec_command")(b"Clear")
+
+    def get_string(self, row: int, col: int, length: int) -> str:
+        return self.em.string_get(row, col, length)
+
+    def get_screen_lines(self) -> List[str]:
+        lines: List[str] = []
+        for r in range(1, 25):
+            lines.append(self.em.string_get(r, 1, 80))
+        return lines
+
+    def find_string(self, text: str) -> Optional[Tuple[int, int]]:
+        for r in range(1, 25):
+            line = self.em.string_get(r, 1, 80)
+            c = line.find(text)
+            if c != -1:
+                return (r, c + 1)
+        return None
+
+    def wait_for_string(
+        self,
+        text: str,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        timeout: float = 15.0,
+    ) -> bool:
+        if row is not None and col is not None:
+            return self.em.string_found(row, col, text)
+        return self.find_string(text) is not None
+
+    def wait_for_ready(self, timeout: float = 15.0) -> None:
+        try:
+            self.em.wait_for_field()
+        except Exception:
+            pass
+
+
+def conectar_terminal_3270(config: Optional[Settings] = None) -> Base3270Driver:
+    """
+    Factory que instancia o driver TN3270 adequado.
+    Em MODO_TESTE_LOCAL retorna Mock3270Driver.
+    Em produção, tenta carregar o driver nativo pw3270 ou py3270 (s3270).
+    """
     cfg = config or settings
 
     if cfg.MODO_TESTE_LOCAL:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(cfg.TERMINAL_TIMEOUT_SECONDS)
-        sock.connect((cfg.LOCAL_HOST, cfg.SSH_PORT))
-        return TerminalDriver(stream=sock)
+        driver = Mock3270Driver()
+        driver.connect(cfg.LOCAL_HOST, cfg.SSH_PORT, cfg.TERMINAL_TIMEOUT_SECONDS)
+        return driver
 
-    cliente_ssh = paramiko.SSHClient()
-    cliente_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    cliente_ssh.connect(
-        cfg.SSH_HOST,
-        port=cfg.SSH_PORT,
-        username=cfg.SSH_USER,
-        password=cfg.SSH_PASS,
-        timeout=cfg.TERMINAL_TIMEOUT_SECONDS,
-    )
-    canal = cliente_ssh.invoke_shell(term="vt100", width=80, height=24)
-    return TerminalDriver(stream=canal, ssh_client=cliente_ssh)
+    # Tenta pw3270 nativo primeiro
+    try:
+        pw_driver = Pw3270Driver()
+        pw_driver.connect(cfg.SSH_HOST, cfg.SSH_PORT, cfg.TERMINAL_TIMEOUT_SECONDS)
+        return pw_driver
+    except Exception as e_pw:
+        logger.warning("pw3270 nativo não disponível: %s. Tentando py3270 (s3270)...", e_pw)
+
+    # Fallback para py3270 / s3270
+    try:
+        py_driver = Py3270Driver()
+        py_driver.connect(cfg.SSH_HOST, cfg.SSH_PORT, cfg.TERMINAL_TIMEOUT_SECONDS)
+        return py_driver
+    except Exception as e_py:
+        logger.error("Nenhum emulador 3270 disponível no sistema: %s", e_py)
+        msg_erro = (
+            f"Não foi possível conectar ao host TN3270 {cfg.SSH_HOST}:{cfg.SSH_PORT}. "
+            "Certifique-se de ter o python3-tn3270 ou s3270 instalados."
+        )
+        raise RuntimeError(msg_erro) from e_py
