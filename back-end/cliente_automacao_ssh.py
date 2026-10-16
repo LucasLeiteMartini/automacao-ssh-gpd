@@ -13,15 +13,17 @@ import paramiko
 # ================= CONFIGURAÇÕES =================
 MODO_TESTE_LOCAL = True  # Mude para False para rodar em SSH real
 
+import os
+
 # Credenciais do Servidor / SSH
-SSH_HOST = "172.16.5.13"
-SSH_PORT = 2222
-SSH_USER = "root"
-SSH_PASS = "inforgpd2012*"
+SSH_HOST = os.getenv("SSH_HOST", "127.0.0.1")
+SSH_PORT = int(os.getenv("SSH_PORT", "2222"))
+SSH_USER = os.getenv("SSH_USER", "usuario")
+SSH_PASS = os.getenv("SSH_PASS", "senha")
 
 # Credenciais da Aplicação (Operador)
-APP_MATRICULA = "OP-9876"
-APP_SENHA = "SenhaForte@2026"
+APP_MATRICULA = os.getenv("APP_MATRICULA", "OPERADOR")
+APP_SENHA = os.getenv("APP_SENHA", "SENHA")
 
 # Dados do Solicitante para Consulta
 SOLICITANTE_MATRICULA = "123456"

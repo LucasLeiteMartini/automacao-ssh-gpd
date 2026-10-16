@@ -26,10 +26,10 @@ def test_mock_3270_driver_operacoes_matriz():
     # Verifica banner da tela de login
     assert "SISTEMA INTEGRADO LEGADO" in driver.get_string(4, 21, 40)
 
-    # Preenche credenciais em coordenadas específicas
-    driver.send_string("OP-9876", row=8, col=36)
-    driver.send_string("SenhaForte@2026", row=9, col=36)
-    assert driver.get_string(8, 36, 7) == "OP-9876"
+    # Preenche credenciais de teste em coordenadas específicas
+    driver.send_string("TESTOP", row=8, col=36)
+    driver.send_string("PassTest123", row=9, col=36)
+    assert driver.get_string(8, 36, 6) == "TESTOP"
 
     # Envia AID Enter para avançar para o menu
     driver.send_enter()
