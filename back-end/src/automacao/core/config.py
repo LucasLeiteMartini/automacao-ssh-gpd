@@ -1,56 +1,63 @@
 """
-Configurações da aplicação e credenciais parametrizadas.
-Suporta variáveis de ambiente e arquivo .env com fallbacks seguros.
+Configurações da aplicação e credenciais carregadas diretamente das variáveis de ambiente (.env).
 """
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
-# Carrega .env se existir (busca na raiz do projeto ou diretório corrente)
+# Carrega .env da raiz do projeto ou diretório corrente (com fallback para .env.example em CI)
 try:
     from dotenv import load_dotenv
 
+    raiz_repo = Path(__file__).resolve().parents[4]
+    dir_backend = Path(__file__).resolve().parents[3]
     caminhos_env = [
         Path.cwd() / ".env",
-        Path(__file__).resolve().parents[3] / ".env",
+        Path.cwd().parent / ".env",
+        dir_backend / ".env",
+        raiz_repo / ".env",
+        raiz_repo / ".env.example",
     ]
-    for p in caminhos_env:
-        if p.exists():
-            load_dotenv(dotenv_path=p)
+    for caminho in caminhos_env:
+        if caminho.exists():
+            load_dotenv(dotenv_path=caminho)
             break
 except ImportError:
     pass
 
 
+def _env_str(key: str) -> str:
+    """Obtém uma string diretamente do environment removendo aspas/espaços."""
+    return os.environ[key].strip('"\' ')
+
+
 @dataclass(frozen=True)
 class Settings:
-    """Configurações centralizadas da aplicação."""
+    """Configurações centralizadas da aplicação lidas diretamente do environment."""
     # pylint: disable=invalid-name,too-many-instance-attributes
-    # Modo de execução: True para simulador mock em memória, False para terminal/mainframe real
-    MODO_TESTE_LOCAL: bool = os.getenv("MODO_TESTE_LOCAL", "true").lower() in ("true", "1", "yes")
+    MODO_TESTE_LOCAL: bool = _env_str("MODO_TESTE_LOCAL").lower() in ("true", "1", "yes")
 
-    # Servidor SSH / Host Real (parametrizado via variáveis de ambiente)
-    SSH_HOST: str = os.getenv("SSH_HOST", "127.0.0.1").strip('"\' ')
-    SSH_PORT: int = int(os.getenv("SSH_PORT", "22"))
-    SSH_USER: str = os.getenv("SSH_USER", "usuario").strip('"\' ')
-    SSH_PASS: str = os.getenv("SSH_PASS", "senha").strip('"\' ')
+    # Host Real TN3270
+    HOST: str = _env_str("HOST")
+    PORT: int = int(_env_str("PORT"))
+    SECURE_CONNECTION: bool = _env_str("SECURE_CONNECTION").lower() in ("true", "1", "yes")
 
     # Host para modo de teste local (simulador)
-    LOCAL_HOST: str = os.getenv("LOCAL_HOST", "127.0.0.1").strip('"\' ')
+    LOCAL_HOST: str = _env_str("LOCAL_HOST")
 
     # Credenciais do Operador no Terminal Legado
-    APP_MATRICULA: str = os.getenv("APP_MATRICULA", "OPERADOR").strip('"\' ')
-    APP_SENHA: str = os.getenv("APP_SENHA", "SENHA").strip('"\' ')
+    APP_MATRICULA: str = _env_str("APP_MATRICULA")
+    APP_SENHA: str = _env_str("APP_SENHA")
 
     # Timeouts e Controle de Concorrência
-    LOCK_TIMEOUT_SECONDS: float = float(os.getenv("LOCK_TIMEOUT_SECONDS", "30.0"))
-    TERMINAL_TIMEOUT_SECONDS: float = float(os.getenv("TERMINAL_TIMEOUT_SECONDS", "15.0"))
-    CADENCIA_ENVIO_SEGUNDOS: float = float(os.getenv("CADENCIA_ENVIO_SEGUNDOS", "0.05"))
+    LOCK_TIMEOUT_SECONDS: float = float(_env_str("LOCK_TIMEOUT_SECONDS"))
+    TERMINAL_TIMEOUT_SECONDS: float = float(_env_str("TERMINAL_TIMEOUT_SECONDS"))
+    CADENCIA_ENVIO_SEGUNDOS: float = float(_env_str("CADENCIA_ENVIO_SEGUNDOS"))
 
     # Servidor FastAPI
-    API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
-    API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    API_HOST: str = _env_str("API_HOST")
+    API_PORT: int = int(_env_str("API_PORT"))
 
 
 settings = Settings()

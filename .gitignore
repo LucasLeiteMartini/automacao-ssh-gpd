@@ -40,3 +40,8 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local artifacts & scratch scripts
+prints-legado/
+back-end/test_conexao_3270.py
+

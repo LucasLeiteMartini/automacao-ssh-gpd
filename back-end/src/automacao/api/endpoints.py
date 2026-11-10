@@ -6,6 +6,7 @@ Expondo as duas fases stateless conforme contratos da Seção 5 do CONTEXT.txt.
 from fastapi import APIRouter, HTTPException, status
 
 from automacao.core.security import (
+    CadastroInexistenteError,
     OperatorLockTimeoutError,
     TerminalTimeoutError,
     UsuarioJaConectadoError,
@@ -37,8 +38,14 @@ async def consultar_registros(payload: ConsultaRegistrosRequest):
             matricula=payload.matricula,
             digito=payload.digito,
             sequencia=payload.sequencia,
+            opcao_consulta=payload.opcao_consulta,
         )
         return resultado
+    except CadastroInexistenteError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
     except OperatorLockTimeoutError as e:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
@@ -49,7 +56,7 @@ async def consultar_registros(payload: ConsultaRegistrosRequest):
             status_code=status.HTTP_423_LOCKED,
             detail=str(e),
         ) from e
-    except TerminalTimeoutError as e:
+    except (TerminalTimeoutError, TimeoutError) as e:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(e),
@@ -77,11 +84,17 @@ async def extrair_detalhes(payload: DetalhesRequest):
             digito=payload.digito,
             sequencia=payload.sequencia,
             indices_selecionados=payload.indices_selecionados,
+            opcao_consulta=payload.opcao_consulta,
         )
         return DetalhesResponse(
             status="sucesso",
             dados=[RegistroDetalhe(**item) for item in dados],
         )
+    except CadastroInexistenteError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
     except OperatorLockTimeoutError as e:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
@@ -92,7 +105,7 @@ async def extrair_detalhes(payload: DetalhesRequest):
             status_code=status.HTTP_423_LOCKED,
             detail=str(e),
         ) from e
-    except TerminalTimeoutError as e:
+    except (TerminalTimeoutError, TimeoutError) as e:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(e),

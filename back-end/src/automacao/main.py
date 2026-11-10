@@ -11,7 +11,7 @@ from automacao.core.config import settings
 from automacao.core.security import operator_lock
 
 app = FastAPI(
-    title="Automação Terminal Legado SSH",
+    title="Automação Terminal Legado TN3270",
     description="API REST intermediária para automação de terminal legado com sessão monousuário.",
     version="1.0.0",
 )

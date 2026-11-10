@@ -11,7 +11,13 @@ class Base3270Driver(ABC):
     """Contrato base para comunicação com emuladores e conexões TN3270."""
 
     @abstractmethod
-    def connect(self, host: str, port: int = 23, timeout: float = 15.0) -> None:
+    def connect(
+        self,
+        host: str,
+        port: int = 23,
+        timeout: float = 15.0,
+        secure: bool = False,
+    ) -> None:
         """Estabelece conexão TN3270 com o host e porta especificados."""
 
     @abstractmethod

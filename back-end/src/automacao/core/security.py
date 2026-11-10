@@ -1,11 +1,13 @@
 """
 Gerenciador de concorrência e sessão única para a credencial do operador.
-Utiliza asyncio.Lock com timeout para proteger o terminal legado contra acessos simultâneos.
+Utiliza asyncio.Lock com timeout do environment para proteger o terminal contra acessos simultâneos.
 """
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
+
+from automacao.core.config import settings
 
 
 class OperatorLockTimeoutError(Exception):
@@ -20,12 +22,18 @@ class TerminalTimeoutError(Exception):
     """Lançado quando o terminal legado não responde a âncora esperada no tempo limite."""
 
 
+class CadastroInexistenteError(Exception):
+    """Lançado quando o SPPC/CONFER retorna erro de cadastro inexistente na linha 1."""
+
+
 class OperatorConcurrencyManager:
     """Controla o acesso exclusivo à credencial única do operador."""
 
-    def __init__(self, timeout_seconds: float = 30.0):
+    def __init__(self, timeout_seconds: Optional[float] = None):
         self._lock = asyncio.Lock()
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = (
+            timeout_seconds if timeout_seconds is not None else settings.LOCK_TIMEOUT_SECONDS
+        )
 
     @asynccontextmanager
     async def acquire(self) -> AsyncGenerator[None, None]:
