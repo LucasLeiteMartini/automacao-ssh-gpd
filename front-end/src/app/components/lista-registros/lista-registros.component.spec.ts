@@ -15,10 +15,62 @@ import { ConsultaRegistrosResponse } from '../../core/models/solicitante.model';
 })
 class TestHostComponent {
   readonly dados = signal<ConsultaRegistrosResponse>({
-    solicitante: { matricula: '123456', digito: '0', sequencia: '01' },
+    solicitante: {
+      matricula: '211598',
+      digito: '0',
+      sequencia: 'A',
+      nome: 'DOUGLAS ANDRE FONSECA BARBOSA',
+      lotacao: '001 GPD 006 007 GERENCIA DE INFORMATICA',
+    },
     registros: [
-      { indice: 1, id: 'REG-001', descricao: 'Beneficio 1' },
-      { indice: 2, id: 'REG-002', descricao: 'Beneficio 2' },
+      {
+        indice: 1,
+        id: '01/01/13 a 01/01/14',
+        descricao: 'Adq: 30d | Util: 12d | Saldo: 18d',
+        aquisicao_inicio: '01/01/13',
+        aquisicao_fim: '01/01/14',
+        dias_adquiridos: 30,
+        status: 'P',
+        dias_utilizados: 12,
+        dias_utilizados_periodo: 12,
+        saldo_disponivel: 18,
+      },
+      {
+        indice: 2,
+        id: '01/01/16 a 01/01/17',
+        descricao: 'Adq: 30d | Util: 0d | Saldo: 30d',
+        aquisicao_inicio: '01/01/16',
+        aquisicao_fim: '01/01/17',
+        dias_adquiridos: 30,
+        status: 'P',
+        dias_utilizados: 0,
+        dias_utilizados_periodo: 0,
+        saldo_disponivel: 30,
+      },
+      {
+        indice: 3,
+        id: '01/01/21 a 01/01/22',
+        descricao: 'Adq: 30d | Util: 20d | Saldo: 10d',
+        aquisicao_inicio: '01/01/21',
+        aquisicao_fim: '01/01/22',
+        dias_adquiridos: 30,
+        status: 'P',
+        dias_utilizados: 20,
+        dias_utilizados_periodo: 20,
+        saldo_disponivel: 10,
+      },
+      {
+        indice: 4,
+        id: '01/01/11 a 01/01/12',
+        descricao: 'Adq: 30d | Util: 30d | Saldo: 0d',
+        aquisicao_inicio: '01/01/11',
+        aquisicao_fim: '01/01/12',
+        dias_adquiridos: 30,
+        status: 'NP',
+        dias_utilizados: 30,
+        dias_utilizados_periodo: 30,
+        saldo_disponivel: 0,
+      },
     ],
   });
   selecionados: number[] = [];
@@ -35,34 +87,42 @@ describe('ListaRegistrosComponent', () => {
     }).compileComponents();
   });
 
-  it('deve carregar e renderizar os registros recebidos via linkedSignal', () => {
+  it('deve renderizar os períodos consolidados (1 linha por período) e o saldo total disponível', () => {
     const fixture = TestBed.createComponent(TestHostComponent);
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    // Verifica se os identificadores dos registros aparecem no DOM
-    expect(compiled.textContent).toContain('REG-001');
-    expect(compiled.textContent).toContain('REG-002');
-    expect(compiled.textContent).toContain('0 de 2 marcados');
+    const listaComponent = fixture.debugElement.children[0].componentInstance as ListaRegistrosComponent;
+
+    expect(compiled.textContent).toContain('DOUGLAS ANDRE FONSECA BARBOSA');
+    expect(compiled.textContent).toContain('01/01/13 a 01/01/14');
+    expect(compiled.textContent).toContain('01/01/16 a 01/01/17');
+    expect(compiled.textContent).toContain('01/01/21 a 01/01/22');
+    expect(listaComponent.itens().length).toBe(4);
+    expect(listaComponent.itensVisiveis().length).toBe(4);
+    expect(listaComponent.saldoTotalDisponivel()).toBe(58);
+    expect(compiled.textContent).toContain('Saldo Total Disponível: 58 dias');
+
+    // Filtra somente pendentes (St = P)
+    listaComponent.setFiltro('pendentes');
+    fixture.detectChanges();
+    expect(listaComponent.itensVisiveis().length).toBe(3);
   });
 
-  it('deve alternar a seleção de registros e calcular total', () => {
+  it('deve alternar a seleção de registros e calcular total (Fase 2 em stand-by)', () => {
     const fixture = TestBed.createComponent(TestHostComponent);
     fixture.detectChanges();
 
-    const host = fixture.componentInstance;
     const listaComponent = fixture.debugElement.children[0].componentInstance as ListaRegistrosComponent;
 
-    expect(listaComponent.itens().length).toBe(2);
+    expect(listaComponent.itens().length).toBe(4);
     expect(listaComponent.totalSelecionados()).toBe(0);
 
-    // Marca o primeiro item
     listaComponent.toggleItem(listaComponent.itens()[0]);
     expect(listaComponent.totalSelecionados()).toBe(1);
 
-    // Marca todos
     listaComponent.alternarTodos();
-    expect(listaComponent.totalSelecionados()).toBe(2);
+    expect(listaComponent.totalSelecionados()).toBe(4);
     expect(listaComponent.todosSelecionados()).toBe(true);
   });
 });

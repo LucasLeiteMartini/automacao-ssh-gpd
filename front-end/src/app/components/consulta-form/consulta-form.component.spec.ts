@@ -14,9 +14,25 @@ describe('ConsultaFormComponent', () => {
     fixture.detectChanges();
 
     expect(component.form.valid).toBe(true);
-    expect(component.form.get('matricula')?.value).toBe('123456');
+    expect(component.form.get('opcao_consulta')?.value).toBe('10');
+    expect(component.form.get('matricula')?.value).toBe('211598');
     expect(component.form.get('digito')?.value).toBe('0');
-    expect(component.form.get('sequencia')?.value).toBe('1');
+    expect(component.form.get('sequencia')?.value).toBe('A');
+
+    // Verifica que os textos visíveis do select não exibem os códigos numéricos
+    const opcoesElements = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('#opcao_consulta option')
+    );
+    const textosVisiveis = opcoesElements.map((el) => el.textContent?.trim());
+    const valoresEnviados = opcoesElements.map((el) => (el as HTMLOptionElement).value);
+    expect(textosVisiveis).toEqual([
+      'Tempo de serviço',
+      'Faltas',
+      'Férias',
+      'Licenças',
+      'Punições e elogios',
+    ]);
+    expect(valoresEnviados).toEqual(['4', '9', '10', '13', '16']);
   });
 
   it('deve invalidar o formulário quando a matrícula não tiver exatamente 6 números', () => {
@@ -85,6 +101,7 @@ describe('ConsultaFormComponent', () => {
     });
 
     component.form.patchValue({
+      opcao_consulta: '13',
       matricula: '654321',
       digito: '9',
       sequencia: 'A',
@@ -92,6 +109,7 @@ describe('ConsultaFormComponent', () => {
 
     component.onSubmit();
     expect(payloadRecebido).toEqual({
+      opcao_consulta: '13',
       matricula: '654321',
       digito: '9',
       sequencia: 'A',

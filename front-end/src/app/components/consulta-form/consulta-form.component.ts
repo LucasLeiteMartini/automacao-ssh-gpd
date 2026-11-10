@@ -1,6 +1,14 @@
 import { Component, output, input } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ConsultaRegistrosRequest } from '../../core/models/solicitante.model';
+import {
+  ConsultaRegistrosRequest,
+  OpcaoConsultaCodigo,
+} from '../../core/models/solicitante.model';
+
+export interface OpcaoConsultaItem {
+  codigo: OpcaoConsultaCodigo;
+  label: string;
+}
 
 @Component({
   selector: 'app-consulta-form',
@@ -26,8 +34,29 @@ import { ConsultaRegistrosRequest } from '../../core/models/solicitante.model';
       </div>
 
       <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <!-- Grid Responsivo: Empilhado no mobile, 3 colunas em telas médias+ -->
+        <!-- Grid Responsivo: Empilhado no mobile, colunas em telas médias+ -->
         <div class="row g-2 g-md-3">
+
+          <!-- Tipo de Consulta (envia o código numérico oculto para o back-end) -->
+          <div class="col-12">
+            <label class="form-label small fw-semibold text-muted mb-1" for="opcao_consulta">
+              Tipo de Consulta
+            </label>
+            <div class="input-group">
+              <span class="input-group-text" style="background-color: var(--surface-card); border-color: var(--border-color);">
+                <i class="bi bi-list-ul text-muted"></i>
+              </span>
+              <select
+                id="opcao_consulta"
+                class="form-select fw-semibold"
+                style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
+                formControlName="opcao_consulta">
+                @for (op of opcoesConsulta; track op.codigo) {
+                  <option [value]="op.codigo">{{ op.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
           
           <!-- Matrícula: 6 dígitos numéricos -->
           <div class="col-12 col-md-5">
@@ -129,8 +158,20 @@ export class ConsultaFormComponent {
   readonly loading = input<boolean>(false);
   readonly buscar = output<ConsultaRegistrosRequest>();
 
+  readonly opcoesConsulta: readonly OpcaoConsultaItem[] = [
+    { codigo: '4', label: 'Tempo de serviço' },
+    { codigo: '9', label: 'Faltas' },
+    { codigo: '10', label: 'Férias' },
+    { codigo: '13', label: 'Licenças' },
+    { codigo: '16', label: 'Punições e elogios' },
+  ];
+
   readonly form = new FormGroup({
-    matricula: new FormControl('123456', [
+    opcao_consulta: new FormControl<OpcaoConsultaCodigo>('10', [
+      Validators.required,
+      Validators.pattern(/^(4|9|10|13|16)$/),
+    ]),
+    matricula: new FormControl('211598', [
       Validators.required,
       Validators.pattern(/^\d{6}$/),
     ]),
@@ -138,7 +179,7 @@ export class ConsultaFormComponent {
       Validators.required,
       Validators.pattern(/^\d{1}$/),
     ]),
-    sequencia: new FormControl('1', [
+    sequencia: new FormControl('A', [
       Validators.required,
       Validators.pattern(/^[a-zA-Z0-9]{1}$/),
     ]),
@@ -146,9 +187,10 @@ export class ConsultaFormComponent {
 
   preencherExemplo(): void {
     this.form.patchValue({
-      matricula: '123456',
+      opcao_consulta: '10',
+      matricula: '211598',
       digito: '0',
-      sequencia: '1',
+      sequencia: 'A',
     });
   }
 
@@ -159,6 +201,7 @@ export class ConsultaFormComponent {
         matricula: val.matricula!.trim(),
         digito: val.digito!.trim(),
         sequencia: val.sequencia!.trim(),
+        opcao_consulta: (val.opcao_consulta ?? '10') as OpcaoConsultaCodigo,
       });
     } else {
       this.form.markAllAsTouched();

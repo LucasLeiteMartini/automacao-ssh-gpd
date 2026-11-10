@@ -57,9 +57,10 @@
     </app-loading-spinner>
   }
 
-  <!-- ETAPA 3: Exibição dos Detalhes dos Itens Selecionados -->
+  <!-- ETAPA 3: Exibição dos Detalhes dos Itens Selecionados (Tela NC5F M13A) -->
   @if (etapa() === 'detalhes') {
     <app-detalhe-registros
+      [solicitante]="dadosLista()?.solicitante ?? null"
       [detalhes]="dadosDetalhes()"
       (novaConsulta)="onNovaConsulta()"
       (voltarSelecao)="onVoltarParaLista()">

@@ -101,13 +101,22 @@
    MOBILE-FIRST ENHANCEMENTS & UI UTILITIES
    ========================================================================== */
 
-body {
+html, body {
   font-family: var(--font-family-sans);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+}
+
+app-root,
+app-header,
+app-consulta-form,
+app-lista-registros,
+app-detalhe-registros,
+app-loading-spinner {
+  display: block;
 }
 
 /* Evita auto-zoom incômodo em iOS quando o usuário clica em inputs */
@@ -120,12 +129,10 @@ input, select, textarea {
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-  padding: 1rem;
-  padding-bottom: 6rem; /* Espaço para barra flutuante mobile */
+  padding: 1rem 1rem 2.5rem;
 
   @media (min-width: 768px) {
-    padding: 2rem 1.5rem;
-    padding-bottom: 3rem;
+    padding: 2rem 1.5rem 3rem;
   }
 }
 
@@ -140,6 +147,7 @@ input, select, textarea {
   &.card-interactive {
     cursor: pointer;
     user-select: none;
+    touch-action: pan-y;
 
     &:hover {
       background-color: var(--surface-card-hover);
@@ -154,42 +162,28 @@ input, select, textarea {
   }
 }
 
-/* Barra inferior flutuante para ações no mobile (Sticky Bottom Action Bar) */
+/* Barra inferior de ações seguindo o fluxo normal da página (sem sobreposição) */
 .sticky-bottom-action-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--sticky-bar-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--border-color);
-  padding: 0.75rem 1rem;
-  z-index: 1030;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
-
-  @media (min-width: 768px) {
-    position: static;
-    background: transparent;
-    border: none;
-    padding: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-  }
+  position: static;
+  width: 100%;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-base);
+  padding: 0.875rem 1rem;
+  margin-top: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* Animações suaves para loading e transições */
+/* Animações suaves para loading e transições (sem transform para não criar containing block em position: fixed no mobile) */
 .fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.25s ease-out forwards;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
