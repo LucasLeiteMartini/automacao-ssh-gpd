@@ -86,7 +86,7 @@ export class App implements OnInit {
         matricula: sol.matricula,
         digito: sol.digito,
         sequencia: sol.sequencia,
-        opcao_consulta: sol.opcao_consulta ?? '10',
+        opcao_consulta: sol.opcao_consulta,
         indices_selecionados: indices,
       })
       .subscribe({

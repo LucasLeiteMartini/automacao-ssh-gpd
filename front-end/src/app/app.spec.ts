@@ -45,7 +45,12 @@ describe('App (Integração Front-End)', () => {
     httpMock.expectOne('/health').flush({ status: 'online', operador_ocupado: false });
 
     // 1. Dispara busca a partir do formulário no Front-End
-    app.onBuscar({ matricula: '211598', digito: '0', sequencia: 'A' });
+    app.onBuscar({
+      matricula: '211598',
+      digito: '0',
+      sequencia: 'A',
+      opcao_consulta: '10',
+    });
     expect(app.etapa()).toBe('loading_busca');
 
     // 2. Intercepta POST /api/solicitante/registros e devolve o payload consolidado do back-end
@@ -55,6 +60,7 @@ describe('App (Integração Front-End)', () => {
       matricula: '211598',
       digito: '0',
       sequencia: 'A',
+      opcao_consulta: '10',
     });
 
     const respostaConsolidada: ConsultaRegistrosResponse = {
@@ -62,6 +68,7 @@ describe('App (Integração Front-End)', () => {
         matricula: '211598',
         digito: '0',
         sequencia: 'A',
+        opcao_consulta: '10',
         nome: 'DOUGLAS ANDRE FONSECA BARBOSA',
         lotacao: '001 GPD 006 007 GERENCIA DE INFORMATICA',
       },

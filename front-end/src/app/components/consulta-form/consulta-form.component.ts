@@ -24,13 +24,6 @@ export interface OpcaoConsultaItem {
           </h2>
           <p class="text-muted small mb-0">Informe os dados cadastrais para consultar o terminal legado.</p>
         </div>
-        <button 
-          type="button" 
-          class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1"
-          (click)="preencherExemplo()">
-          <i class="bi bi-magic"></i>
-          <span>Exemplo</span>
-        </button>
       </div>
 
       <form [formGroup]="form" (ngSubmit)="onSubmit()">
@@ -51,6 +44,7 @@ export interface OpcaoConsultaItem {
                 class="form-select fw-semibold"
                 style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
                 formControlName="opcao_consulta">
+                <option value="" disabled>Escolha uma opção para consultar</option>
                 @for (op of opcoesConsulta; track op.codigo) {
                   <option [value]="op.codigo">{{ op.label }}</option>
                 }
@@ -74,7 +68,7 @@ export interface OpcaoConsultaItem {
                 class="form-control"
                 style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
                 formControlName="matricula"
-                placeholder="Ex: 123456"
+                placeholder="000000"
                 inputmode="numeric"
                 autocomplete="off"
                 [class.is-invalid]="form.get('matricula')?.invalid && form.get('matricula')?.touched"
@@ -97,7 +91,7 @@ export interface OpcaoConsultaItem {
               class="form-control text-center fw-bold"
               style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
               formControlName="digito"
-              placeholder="Ex: 0"
+              placeholder="0"
               inputmode="numeric"
               autocomplete="off"
               [class.is-invalid]="form.get('digito')?.invalid && form.get('digito')?.touched"
@@ -107,10 +101,10 @@ export interface OpcaoConsultaItem {
             }
           </div>
 
-          <!-- Sequência: 1 caracter alfanumérico -->
+          <!-- Sequência: 1 letra -->
           <div class="col-6 col-md-4">
             <label class="form-label small fw-semibold text-muted mb-1" for="sequencia">
-              Sequência (1 alfanumérico)
+              Sequência (somente letras)
             </label>
             <input
               id="sequencia"
@@ -119,29 +113,21 @@ export interface OpcaoConsultaItem {
               class="form-control text-center fw-bold"
               style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
               formControlName="sequencia"
-              placeholder="Ex: 1 ou A"
+              placeholder="X"
               inputmode="text"
               autocomplete="off"
               [class.is-invalid]="form.get('sequencia')?.invalid && form.get('sequencia')?.touched"
             />
             @if (form.get('sequencia')?.invalid && form.get('sequencia')?.touched) {
-              <div class="text-danger small mt-1">1 caractere (letra ou número).</div>
+              <div class="text-danger small mt-1">Informe 1 letra (A-Z).</div>
             }
           </div>
 
         </div>
 
         <!-- Botões de Ação -->
-        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-2 mt-3 pt-2 border-top" 
+        <div class="d-flex flex-column flex-sm-row justify-content-end align-items-stretch align-items-sm-center gap-2 mt-3 pt-2 border-top" 
              style="border-color: var(--border-color) !important;">
-          <button 
-            type="button" 
-            class="btn btn-sm btn-outline-secondary d-inline-flex d-sm-none justify-content-center align-items-center gap-1"
-            (click)="preencherExemplo()">
-            <i class="bi bi-magic"></i>
-            <span>Preencher Dados de Teste</span>
-          </button>
-
           <button
             type="submit"
             class="btn btn-warning w-100 w-sm-auto d-flex align-items-center justify-content-center gap-2 py-2 px-4 ms-auto"
@@ -167,32 +153,23 @@ export class ConsultaFormComponent {
   ];
 
   readonly form = new FormGroup({
-    opcao_consulta: new FormControl<OpcaoConsultaCodigo>('10', [
+    opcao_consulta: new FormControl<OpcaoConsultaCodigo | ''>('', [
       Validators.required,
       Validators.pattern(/^(4|9|10|13|16)$/),
     ]),
-    matricula: new FormControl('211598', [
+    matricula: new FormControl('', [
       Validators.required,
       Validators.pattern(/^\d{6}$/),
     ]),
-    digito: new FormControl('0', [
+    digito: new FormControl('', [
       Validators.required,
       Validators.pattern(/^\d{1}$/),
     ]),
-    sequencia: new FormControl('A', [
+    sequencia: new FormControl('', [
       Validators.required,
-      Validators.pattern(/^[a-zA-Z0-9]{1}$/),
+      Validators.pattern(/^[a-zA-Z]{1}$/),
     ]),
   });
-
-  preencherExemplo(): void {
-    this.form.patchValue({
-      opcao_consulta: '10',
-      matricula: '211598',
-      digito: '0',
-      sequencia: 'A',
-    });
-  }
 
   onSubmit(): void {
     if (this.form.valid) {
@@ -201,7 +178,7 @@ export class ConsultaFormComponent {
         matricula: val.matricula!.trim(),
         digito: val.digito!.trim(),
         sequencia: val.sequencia!.trim(),
-        opcao_consulta: (val.opcao_consulta ?? '10') as OpcaoConsultaCodigo,
+        opcao_consulta: val.opcao_consulta as OpcaoConsultaCodigo,
       });
     } else {
       this.form.markAllAsTouched();

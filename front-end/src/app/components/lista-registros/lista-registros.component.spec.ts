@@ -19,6 +19,7 @@ class TestHostComponent {
       matricula: '211598',
       digito: '0',
       sequencia: 'A',
+      opcao_consulta: '10',
       nome: 'DOUGLAS ANDRE FONSECA BARBOSA',
       lotacao: '001 GPD 006 007 GERENCIA DE INFORMATICA',
     },

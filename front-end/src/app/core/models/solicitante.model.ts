@@ -4,7 +4,7 @@ export interface SolicitanteIdentificacao {
   matricula: string;
   digito: string;
   sequencia: string;
-  opcao_consulta?: OpcaoConsultaCodigo;
+  opcao_consulta: OpcaoConsultaCodigo;
   nome?: string | null;
   lotacao?: string | null;
 }
@@ -38,7 +38,7 @@ export interface ConsultaRegistrosRequest {
   matricula: string;
   digito: string;
   sequencia: string;
-  opcao_consulta?: OpcaoConsultaCodigo;
+  opcao_consulta: OpcaoConsultaCodigo;
 }
 
 export interface ConsultaRegistrosResponse {
@@ -50,7 +50,7 @@ export interface DetalhesRequest {
   matricula: string;
   digito: string;
   sequencia: string;
-  opcao_consulta?: OpcaoConsultaCodigo;
+  opcao_consulta: OpcaoConsultaCodigo;
   indices_selecionados: number[];
 }
 

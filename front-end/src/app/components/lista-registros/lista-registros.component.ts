@@ -302,7 +302,7 @@ export class ListaRegistrosComponent {
   readonly filtro = signal<FiltroFerias>('todos');
 
   readonly permiteDetalhes = computed<boolean>(
-    () => (this.dados().solicitante.opcao_consulta ?? '10') === '10'
+    () => this.dados().solicitante.opcao_consulta === '10'
   );
 
   readonly codigoTela = computed<string>(() => {
@@ -313,7 +313,7 @@ export class ListaRegistrosComponent {
       '13': 'SPPC / CONLCA',
       '16': 'SPPC / CONPUE',
     };
-    return mapa[this.dados().solicitante.opcao_consulta ?? '10'] ?? 'SPPC / CONFER';
+    return mapa[this.dados().solicitante.opcao_consulta] ?? 'SPPC';
   });
 
   // Armazena a lista consolidada (1 linha por período aquisitivo) sincronizada via linkedSignal
