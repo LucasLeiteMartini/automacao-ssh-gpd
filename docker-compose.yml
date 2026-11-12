@@ -4,11 +4,18 @@ services:
       context: ./back-end
       dockerfile: Dockerfile
     container_name: automacao-backend
-    restart: unless-stopped
-    ports:
-      - "${API_PORT:-8000}:8000"
+    restart: always
+    expose:
+      - "8000"
     env_file:
       - .env
+    networks:
+      - automacao-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -21,9 +28,20 @@ services:
       context: ./front-end
       dockerfile: Dockerfile
     container_name: automacao-frontend
-    restart: unless-stopped
+    restart: always
     ports:
-      - "4200:80"
+      - "80:80"
     depends_on:
       back-end:
         condition: service_healthy
+    networks:
+      - automacao-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  automacao-net:
+    driver: bridge
