@@ -39,4 +39,4 @@ async def health_check():
 
 def main() -> None:
     """Inicia o servidor uvicorn."""
-    uvicorn.run("automacao.main:app", host=settings.API_HOST, port=settings.API_PORT, reload=True)
+    uvicorn.run("automacao.main:app", host=settings.API_HOST, port=settings.API_PORT)

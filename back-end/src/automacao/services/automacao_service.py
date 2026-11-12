@@ -29,10 +29,7 @@ def _aguardar_tela_solicitante(driver: Base3270Driver) -> None:
     inicio = time.time()
     timeout = settings.TERMINAL_TIMEOUT_SECONDS
     while time.time() - inicio < timeout:
-        if (
-            driver.find_string(parsers.GATILHO_TELA_SOLICITANTE) is not None
-            or driver.find_string("Matric D") is not None
-        ):
+        if driver.find_string(parsers.GATILHO_TELA_SOLICITANTE) is not None:
             return
         time.sleep(0.05)
 
@@ -47,10 +44,19 @@ def _aguardar_lista_ou_erro_confer(driver: Base3270Driver) -> None:
     - Se a linha 1 apresentar erro ('>>> Matricula Inexiste no Cadastro' ou prefixo '>>>'),
       interrompe imediatamente lançando CadastroInexistenteError.
     - Se carregar a 6ª tela de listagem (gatilho de lista, Nome preenchido na linha 6 ou
-      aviso 'Não existem ...' na linha 1), retorna normalmente.
+      aviso de lista vazia na linha 1), retorna normalmente.
     """
     inicio = time.time()
     timeout = settings.TERMINAL_TIMEOUT_SECONDS
+    gatilhos_lista = (
+        parsers.GATILHO_TELA_LISTA,
+        parsers.GATILHO_LISTA_TEMPO_SERVICO,
+        parsers.GATILHO_LISTA_FALTAS,
+        parsers.GATILHO_LISTA_LICENCAS,
+        parsers.GATILHO_LISTA_PUNICOES,
+    )
+    gatilho_vazio = parsers.GATILHO_SEM_REGISTROS.lower()
+
     while time.time() - inicio < timeout:
         linha_erro = driver.get_string(1, 1, 80).strip()
         linha_lower = linha_erro.lower()
@@ -65,9 +71,9 @@ def _aguardar_lista_ou_erro_confer(driver: Base3270Driver) -> None:
 
         cabecalho = parsers.parse_cabecalho_solicitante_3270(driver)
         if (
-            driver.find_string(parsers.GATILHO_TELA_LISTA) is not None
+            any(driver.find_string(g) is not None for g in gatilhos_lista)
             or cabecalho.get("nome") is not None
-            or "não existem" in linha_lower
+            or gatilho_vazio in linha_lower
             or "nao existem" in linha_lower
         ):
             return
@@ -85,7 +91,7 @@ def _navegar_ate_consulta_solicitante(
     solicitante_matricula: str,
     solicitante_digito: str,
     solicitante_sequencia: str,
-    opcao_consulta: str = "10",
+    opcao_consulta: str,
 ) -> None:
     """
     Navega pelos 5 painéis reais do mainframe PRODAM/SPPC até carregar a listagem do servidor:
@@ -115,7 +121,7 @@ def _navegar_ate_consulta_solicitante(
     # 4ª Tela: Menu de Consultas (SPPC/CONSULTA)
     driver.wait_for_string(parsers.GATILHO_TELA_SUBMENU)
     r_sub, c_sub = parsers.POS_SUBMENU_OPCAO
-    opcao_submenu = (opcao_consulta or parsers.VALOR_SUBMENU_OPCAO).strip()
+    opcao_submenu = opcao_consulta.strip()
     driver.send_string(opcao_submenu, row=r_sub, col=c_sub)
     driver.send_enter()
     if driver.find_string(parsers.GATILHO_TELA_SUBMENU) is not None:
@@ -152,7 +158,7 @@ def _executar_busca_registros_sync(
     solicitante_matricula: str,
     solicitante_digito: str,
     solicitante_sequencia: str,
-    opcao_consulta: str = "10",
+    opcao_consulta: str,
 ) -> Dict[str, Any]:
     """
     Fase 1 (Síncrona TN3270):
@@ -172,8 +178,8 @@ def _executar_busca_registros_sync(
         cabecalho = parsers.parse_cabecalho_solicitante_3270(driver)
         registros = parsers.parse_lista_registros_3270(
             driver,
-            paginar=True,
             opcao_consulta=opcao_consulta,
+            paginar=True,
         )
     finally:
         try:
@@ -222,7 +228,7 @@ def _executar_extracao_detalhes_sync(
     solicitante_digito: str,
     solicitante_sequencia: str,
     indices_selecionados: List[int],
-    opcao_consulta: str = "10",
+    opcao_consulta: str,
 ) -> List[Dict[str, Any]]:
     """
     Fase 2 (Síncrona TN3270):
@@ -305,7 +311,7 @@ class AutomacaoService:
         matricula: str,
         digito: str,
         sequencia: str,
-        opcao_consulta: str = "10",
+        opcao_consulta: str,
     ) -> Dict[str, Any]:
         """Fase 1: Adquire a trava do operador e obtém a lista e saldo de férias via TN3270."""
         async with operator_lock.acquire():
@@ -323,7 +329,7 @@ class AutomacaoService:
         digito: str,
         sequencia: str,
         indices_selecionados: List[int],
-        opcao_consulta: str = "10",
+        opcao_consulta: str,
     ) -> List[Dict[str, Any]]:
         """Fase 2: Adquire a trava do operador e extrai detalhes marcados via TN3270."""
         async with operator_lock.acquire():

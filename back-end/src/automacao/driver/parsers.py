@@ -30,6 +30,11 @@ GATILHO_TELA_MENU = _env_str("GATILHO_TELA_MENU")
 GATILHO_TELA_SUBMENU = _env_str("GATILHO_TELA_SUBMENU")
 GATILHO_TELA_SOLICITANTE = _env_str("GATILHO_TELA_SOLICITANTE")
 GATILHO_TELA_LISTA = _env_str("GATILHO_TELA_LISTA")
+GATILHO_LISTA_TEMPO_SERVICO = _env_str("GATILHO_LISTA_TEMPO_SERVICO")
+GATILHO_LISTA_FALTAS = _env_str("GATILHO_LISTA_FALTAS")
+GATILHO_LISTA_LICENCAS = _env_str("GATILHO_LISTA_LICENCAS")
+GATILHO_LISTA_PUNICOES = _env_str("GATILHO_LISTA_PUNICOES")
+GATILHO_SEM_REGISTROS = _env_str("GATILHO_SEM_REGISTROS")
 GATILHO_TELA_DETALHE = _env_str("GATILHO_TELA_DETALHE")
 GATILHO_FIM_SESSAO = _env_str("GATILHO_FIM_SESSAO")
 
@@ -62,7 +67,6 @@ VALOR_MENU_OPCAO = _env_str("OPCAO_MENU_PRINCIPAL")
 
 # 4ª Tela: Menu de Consultas (SPPC/CONSULTA)
 POS_SUBMENU_OPCAO = (_env_int("POS_SUBMENU_LINHA"), _env_int("POS_SUBMENU_COLUNA"))
-VALOR_SUBMENU_OPCAO = _env_str("OPCAO_SUBMENU")
 
 # 5ª Tela: Consulta Férias do Servidor (SPPC/CONFER - PC05 M05A)
 POS_SOLICITANTE_MATRICULA = (
@@ -376,7 +380,7 @@ def acumular_linha_ferias(
     return int(por_periodo[chave]["indice"])
 
 
-def avancar_pagina_3270(driver: Base3270Driver, opcao_consulta: str = "10") -> None:
+def avancar_pagina_3270(driver: Base3270Driver, opcao_consulta: str) -> None:
     """
     Avança para a próxima página de registros no terminal 3270:
     - Na opção 10 (Férias / SPPC-CONFER), a paginação é feita com ENTER.
@@ -421,11 +425,12 @@ def _parse_lista_consultas_simples_3270(
     registros: List[Dict[str, Any]] = []
     paginas_vistas: set[Tuple[str, ...]] = set()
     pagina_atual = 1
+    gatilho_vazio = GATILHO_SEM_REGISTROS.lower()
 
     while pagina_atual <= 50:
         lines = driver.get_screen_lines()
         linha_topo = lines[0].strip().lower() if lines else ""
-        if "não existem" in linha_topo or "nao existem" in linha_topo:
+        if gatilho_vazio in linha_topo or "nao existem" in linha_topo:
             break
 
         fatia_tabela = tuple(lines[9:22])
@@ -468,8 +473,8 @@ def _parse_lista_consultas_simples_3270(
 # pylint: disable=too-many-locals
 def parse_lista_registros_3270(
     driver: Base3270Driver,
+    opcao_consulta: str,
     paginar: bool = True,
-    opcao_consulta: str = "10",
 ) -> List[Dict[str, Any]]:
     """
     Percorre todas as páginas da matriz 24x80 na tela de consulta:

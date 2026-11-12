@@ -145,7 +145,7 @@ class Mock3270Driver(Base3270Driver):
             "lotacao": "001 GPD            006 007         GERENCIA DE INFORMATICA",
             "registros": REGISTROS_PRINT_SPPC,
         },
-        ("123456", "0", "1"): {
+        ("123456", "0", "A"): {
             "nome": "DOUGLAS ANDRE FONSECA BARBOSA",
             "lotacao": "001 GPD            006 007         GERENCIA DE INFORMATICA",
             "registros": REGISTROS_PRINT_SPPC,

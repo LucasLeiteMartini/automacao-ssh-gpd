@@ -16,10 +16,10 @@ class SolicitanteIdentificacao(BaseModel):
         ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
     )
     sequencia: str = Field(
-        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+        ..., pattern=r"^[a-zA-Z]{1}$", description="Sequência com 1 letra"
     )
     opcao_consulta: str = Field(
-        "10",
+        ...,
         pattern=r"^(4|9|10|13|16)$",
         description="Código da consulta no menu SPPC/CONSULTA (4, 9, 10, 13 ou 16)",
     )
@@ -36,10 +36,10 @@ class ConsultaRegistrosRequest(BaseModel):
         ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
     )
     sequencia: str = Field(
-        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+        ..., pattern=r"^[a-zA-Z]{1}$", description="Sequência com 1 letra"
     )
     opcao_consulta: str = Field(
-        "10",
+        ...,
         pattern=r"^(4|9|10|13|16)$",
         description="Código da consulta no menu SPPC/CONSULTA (4, 9, 10, 13 ou 16)",
     )
@@ -83,10 +83,10 @@ class DetalhesRequest(BaseModel):
         ..., pattern=r"^\d{1}$", description="Dígito verificador numérico de 1 dígito"
     )
     sequencia: str = Field(
-        ..., pattern=r"^[a-zA-Z0-9]{1}$", description="Sequência com 1 caractere alfanumérico"
+        ..., pattern=r"^[a-zA-Z]{1}$", description="Sequência com 1 letra"
     )
     opcao_consulta: str = Field(
-        "10",
+        ...,
         pattern=r"^(4|9|10|13|16)$",
         description="Código da consulta no menu SPPC/CONSULTA (4, 9, 10, 13 ou 16)",
     )

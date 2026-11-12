@@ -10,5 +10,4 @@ if __name__ == "__main__":
         "automacao.main:app",
         host=settings.API_HOST,
         port=settings.API_PORT,
-        reload=True,
     )

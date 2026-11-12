@@ -89,7 +89,7 @@ def test_parsers_3270_calculo_saldo_ferias_sppc():
     driver.send_string("2115980A")
     driver.send_enter()  # -> Lista carregada
 
-    registros = parse_lista_registros_3270(driver)
+    registros = parse_lista_registros_3270(driver, opcao_consulta="10")
     # 10 linhas brutas consolidam em 7 períodos aquisitivos únicos (11/12, 12/13, 13/14, 14/15, 15/16, 16/17, 17/18)
     assert len(registros) == 7
 
@@ -152,7 +152,12 @@ def test_fase1_consulta_registros():
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "211598", "digito": "0", "sequencia": "A"},
+                json={
+                    "matricula": "211598",
+                    "digito": "0",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             assert response.status_code == 200
             dados = response.json()
@@ -177,7 +182,8 @@ def test_fase2_extrair_detalhes():
                 json={
                     "matricula": "123456",
                     "digito": "0",
-                    "sequencia": "1",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
                     "indices_selecionados": [1, 3, 6],
                 },
             )
@@ -214,14 +220,20 @@ def test_concorrencia_e_serializacao_com_lock():
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             req1 = client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "123456", "digito": "0", "sequencia": "1"},
+                json={
+                    "matricula": "123456",
+                    "digito": "0",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             req2 = client.post(
                 "/api/solicitante/detalhes",
                 json={
                     "matricula": "123456",
                     "digito": "0",
-                    "sequencia": "1",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
                     "indices_selecionados": [2],
                 },
             )
@@ -237,25 +249,40 @@ def test_concorrencia_e_serializacao_com_lock():
 
 
 def test_validacao_campos_solicitante_invalido():
-    """Valida que entradas fora da especificação (6 números, 1 dígito, 1 alfanumérico) retornam 422."""
+    """Valida que entradas fora da especificação (6 números, 1 dígito, 1 letra) retornam 422."""
     async def _run():
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp_mat = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "12345", "digito": "0", "sequencia": "1"},
+                json={
+                    "matricula": "12345",
+                    "digito": "0",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp_mat.status_code == 422
 
             resp_dig = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "123456", "digito": "00", "sequencia": "1"},
+                json={
+                    "matricula": "123456",
+                    "digito": "00",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp_dig.status_code == 422
 
             resp_seq = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "123456", "digito": "0", "sequencia": "01"},
+                json={
+                    "matricula": "123456",
+                    "digito": "0",
+                    "sequencia": "1",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp_seq.status_code == 422
 
@@ -264,11 +291,17 @@ def test_validacao_campos_solicitante_invalido():
                 json={
                     "matricula": "123456",
                     "digito": "0",
-                    "sequencia": "1",
+                    "sequencia": "A",
                     "opcao_consulta": "99",
                 },
             )
             assert resp_opcao.status_code == 422
+
+            resp_sem_opcao = await client.post(
+                "/api/solicitante/registros",
+                json={"matricula": "123456", "digito": "0", "sequencia": "A"},
+            )
+            assert resp_sem_opcao.status_code == 422
 
     asyncio.run(_run())
 
@@ -357,7 +390,12 @@ def test_solicitante_inexistente_retorna_404_e_desconecta(monkeypatch):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp_inexistente = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "999999", "digito": "9", "sequencia": "Z"},
+                json={
+                    "matricula": "999999",
+                    "digito": "9",
+                    "sequencia": "Z",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp_inexistente.status_code == 404
             assert "Matricula Inexiste no Cadastro" in resp_inexistente.json()["detail"]
@@ -369,7 +407,12 @@ def test_solicitante_inexistente_retorna_404_e_desconecta(monkeypatch):
 
             resp_b = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "654321", "digito": "9", "sequencia": "A"},
+                json={
+                    "matricula": "654321",
+                    "digito": "9",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp_b.status_code == 200
             registros_b = resp_b.json()["registros"]
@@ -403,7 +446,12 @@ def test_integracao_fluxo_completo_e_desconexao_segura(monkeypatch):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/solicitante/registros",
-                json={"matricula": "211598", "digito": "0", "sequencia": "A"},
+                json={
+                    "matricula": "211598",
+                    "digito": "0",
+                    "sequencia": "A",
+                    "opcao_consulta": "10",
+                },
             )
             assert resp.status_code == 200
             corpo = resp.json()
