@@ -431,3 +431,70 @@ def test_integracao_fluxo_completo_e_desconexao_segura(monkeypatch):
             assert resp_health.json() == {"status": "online", "operador_ocupado": False}
 
     asyncio.run(_run())
+
+
+def test_consultas_4_9_13_16_paginacao_pf8_e_leitura_buffer(monkeypatch):
+    """
+    Valida a leitura do buffer 24x80 e paginação via PF8 nas opções:
+    - 4 (SPPC/CONATS - Tempo de Serviço, 2 páginas: 001/002 -> 002/002)
+    - 9 (SPPC/CONFLT - Faltas, 'Não existem faltas cadastradas.' -> lista vazia)
+    - 13 (SPPC/CONLCA - Licenças, 1 página: 001/001)
+    - 16 (SPPC/CONPUE - Punições e Elogios, 2 páginas: 001/002 -> 002/002, iniciando na linha 10)
+    """
+    def _factory_spy(config=None):
+        drv = Mock3270Driver()
+        drv.connect("127.0.0.1", 992, secure=True)
+        return drv
+
+    monkeypatch.setattr(
+        "automacao.services.automacao_service.conectar_terminal_3270",
+        _factory_spy,
+    )
+
+    async def _run():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # Opção 4: Tempo de Serviço (2 páginas -> 3 registros)
+            r4 = await client.post(
+                "/api/solicitante/registros",
+                json={"matricula": "211598", "digito": "0", "sequencia": "A", "opcao_consulta": "4"},
+            )
+            assert r4.status_code == 200
+            d4 = r4.json()
+            assert d4["solicitante"]["nome"] == "DOUGLAS ANDRE FONSECA BARBOSA"
+            assert len(d4["registros"]) == 3
+            assert "SEC MUNICIPAL SAUDE" in d4["registros"][0]["id"]
+            assert "PER. CONTR. CNIS 8" in d4["registros"][2]["id"]
+
+            # Opção 9: Faltas ('Não existem faltas cadastradas.' -> 0 registros)
+            r9 = await client.post(
+                "/api/solicitante/registros",
+                json={"matricula": "211598", "digito": "0", "sequencia": "A", "opcao_consulta": "9"},
+            )
+            assert r9.status_code == 200
+            d9 = r9.json()
+            assert d9["solicitante"]["nome"] == "DOUGLAS ANDRE FONSECA BARBOSA"
+            assert d9["registros"] == []
+
+            # Opção 13: Licenças (1 página -> 2 registros)
+            r13 = await client.post(
+                "/api/solicitante/registros",
+                json={"matricula": "211598", "digito": "0", "sequencia": "A", "opcao_consulta": "13"},
+            )
+            assert r13.status_code == 200
+            d13 = r13.json()
+            assert len(d13["registros"]) == 2
+            assert "Licenca Paternidade" in d13["registros"][0]["id"]
+
+            # Opção 16: Punições e Elogios (2 páginas -> 3 registros, linha 10 inclusa)
+            r16 = await client.post(
+                "/api/solicitante/registros",
+                json={"matricula": "211598", "digito": "0", "sequencia": "A", "opcao_consulta": "16"},
+            )
+            assert r16.status_code == 200
+            d16 = r16.json()
+            assert len(d16["registros"]) == 3
+            assert "05/12/16" in d16["registros"][0]["id"]
+            assert "07/08/19" in d16["registros"][2]["id"]
+
+    asyncio.run(_run())

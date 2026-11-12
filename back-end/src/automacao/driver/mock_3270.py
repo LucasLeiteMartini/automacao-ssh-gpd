@@ -288,19 +288,7 @@ class Mock3270Driver(Base3270Driver):
             self._render_lista_screen(dados_servidor)
 
         elif self.current_screen == "LISTA":
-            self.marked_indices = []
-            offset = (self.current_page - 1) * 10
-            fatia_pagina = self.current_records[offset : offset + 10]
-            for idx in range(len(fatia_pagina)):
-                r_pos = 11 + idx
-                val = self.get_string(r_pos, 3, 1)
-                if val.upper() == "X":
-                    self.marked_indices.append(offset + idx + 1)
-
-            if self.marked_indices:
-                self.detail_index = 0
-                self.current_screen = "DETALHES"
-                self._render_detalhe_screen()
+            self._handle_lista_enter()
 
         elif self.current_screen == "DETALHES":
             self.detail_index += 1
@@ -312,6 +300,31 @@ class Mock3270Driver(Base3270Driver):
                     self._render_lista_screen(
                         self.CATALOGO_SOLICITANTES.get(self.current_solicitante)
                     )
+
+    def _handle_lista_enter(self) -> None:
+        """Processa a tecla ENTER na 6ª tela (marcação de detalhes ou paginação na opção 10)."""
+        self.marked_indices = []
+        offset = (self.current_page - 1) * 10
+        fatia_pagina = self.current_records[offset : offset + 10]
+        for idx in range(len(fatia_pagina)):
+            r_pos = 11 + idx
+            val = self.get_string(r_pos, 3, 1)
+            if val.upper() == "X":
+                self.marked_indices.append(offset + idx + 1)
+
+        if self.marked_indices:
+            self.detail_index = 0
+            self.current_screen = "DETALHES"
+            self._render_detalhe_screen()
+        elif self.last_submenu_option == "10":
+            if self.current_page * 10 < len(self.current_records):
+                self.current_page += 1
+                if self.current_solicitante:
+                    self._render_lista_screen(
+                        self.CATALOGO_SOLICITANTES.get(self.current_solicitante)
+                    )
+            else:
+                self._set_line(1, ">>> Fim da Paginacao", 2)
 
     def send_pf(self, key_number: int) -> None:
         """
@@ -325,7 +338,11 @@ class Mock3270Driver(Base3270Driver):
                 self.current_screen = "APLICACAO"
                 self._render_aplicacao_screen()
         elif key_number == 8 and self.current_screen == "LISTA":
-            if self.current_page * 10 < len(self.current_records):
+            tem_proxima = (
+                (self.last_submenu_option in ("4", "16") and self.current_page < 2)
+                or (self.current_page * 10 < len(self.current_records))
+            )
+            if tem_proxima:
                 self.current_page += 1
                 if self.current_solicitante:
                     self._render_lista_screen(
@@ -430,12 +447,60 @@ class Mock3270Driver(Base3270Driver):
         self._set_line(15, "Situação.: _   1 - Pendente", 13)
         self.cursor_row, self.cursor_col = 6, 4
 
+    # pylint: disable=too-many-statements
     def _render_lista_screen(self, dados_servidor: Optional[Dict[str, Any]]) -> None:
         self.send_clear()
         if not dados_servidor or not self.current_solicitante:
             return
 
         mat, dig, seq = self.current_solicitante
+        opc = self.last_submenu_option.strip()
+
+        if opc == "4":
+            self._set_line(1, "SPPC/CONATS             Relacao de Averbacoes Existentes         10/11/2026", 3)
+            self._set_line(3, f"0001/0017                                                        00{self.current_page}/002", 3)
+            self._set_line(6, f"Servidor {mat[:3]}.{mat[3:]}-- {seq} {dados_servidor['nome']}", 4)
+            self._set_line(8, "Efe  Tipo  Prestacao de Servicos.........  Dias+-----  Datas  -----+", 5)
+            self._set_line(9, "                                               Inicio....  Fim.......", 5)
+            if self.current_page == 1:
+                self._set_line(11, "TE   MU  SEC MUNICIPAL SAUDE                1921  18/10/2005  20/01/2011", 5)
+                self._set_line(12, "TE   IN  FUNDACAO DE APOIO MURAKI            141  01/07/2005  17/10/2005", 5)
+            else:
+                self._set_line(11, "TE   IN  PER. CONTR. CNIS 8                  030  01/04/2009  30/04/2009", 5)
+            return
+
+        if opc == "9":
+            self._set_line(1, "Não existem faltas cadastradas.", 2)
+            self._set_line(2, "SPPC/CONFLT             SISTEMA PESSOAL DA POLICIA CIVIL         10/11/2026", 3)
+            self._set_line(5, "Matric D S   Nome", 3)
+            self._set_line(6, f"{mat} {dig} {seq}   {dados_servidor['nome']}", 3)
+            self._set_line(8, f"Lotacao: {dados_servidor['lotacao']}", 3)
+            self._set_line(11, "Data", 11)
+            self._set_line(12, "Inicio.: __ __ ____", 14)
+            self._set_line(13, "Fim....: 10 11 2026", 14)
+            return
+
+        if opc == "13":
+            self._set_line(1, "SPPC/CONLCA             Relacao de Licencas Existentes           10/11/2026", 3)
+            self._set_line(3, "0001/0004                                                        001/001", 3)
+            self._set_line(6, f"Servidor {mat[:3]}.{mat[3:]}-{dig} {seq} {dados_servidor['nome']}", 4)
+            self._set_line(9, "Licenca                        Dias Hora     Inicio    Final     Inicio    Final", 3)
+            self._set_line(11, "Licenca Paternidade             15        02/02/19 16/02/19", 3)
+            self._set_line(12, "Licenca Medica                  05        11/12/20 15/12/20", 3)
+            return
+
+        if opc == "16":
+            self._set_line(1, "SPPC/CONPUE        Relacao de Punicoes e Elogios Existentes      10/11/2026", 3)
+            self._set_line(3, f"0001/0022                                                        00{self.current_page}/002", 3)
+            self._set_line(6, f"Servidor {mat[:3]}.{mat[3:]}-{dig} {seq} {dados_servidor['nome']}", 4)
+            self._set_line(8, "Tipo......... ..Data.. Autoridade....................................", 3)
+            if self.current_page == 1:
+                self._set_line(10, "Elogio         05/12/16 Francisco Sobrinho,delegado Geral/pc/am", 3)
+                self._set_line(11, "Elogio         12/12/16 Francisco Sobrinho Dg/pcam", 3)
+            else:
+                self._set_line(10, "Elogio         07/08/19 Alessandra Campelo/vice Pres da Aleam.", 3)
+            return
+
         self._set_line(2, "SPPC/CONFER           SISTEMA PESSOAL DA POLICIA CIVIL", 3)
         self._set_line(3, "Consulta Férias                    MC5A  NC5A", 36)
         self._set_line(5, "Matric D Seq   Nome", 3)

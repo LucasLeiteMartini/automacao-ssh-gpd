@@ -91,25 +91,52 @@ CARACTERE_MARCACAO_REGISTRO = _env_str("CARACTERE_MARCACAO_REGISTRO")
 TECLA_PF_ENCERRAR = _env_int("TECLA_PF_ENCERRAR")
 TECLA_PF_AVANCAR_PAGINA = _env_int("TECLA_PF_AVANCAR_PAGINA")
 
-# Regex de cabeçalho do servidor (Linhas 6 e 7 da tela SPPC/CONFER)
+# Regex de cabeçalho do servidor (Linha 6 das telas SPPC: CONFER, CONATS, CONFLT, CONLCA, CONPUE)
 REGEX_CABECALHO_NOME = re.compile(
-    r"^\s*\d{6}\s*\d\s*[A-Za-z0-9]\s+(?P<nome>.+?)\s*$"
+    r"^\s*(?:Servidor\s+)?\d{3}\.?\d{3}[-\s]*[0-9-]\s+[A-Za-z0-9]\s+(?P<nome>.+?)\s*$",
+    re.IGNORECASE,
 )
 REGEX_CABECALHO_LOTACAO = re.compile(
     r"Lotacao:\s*(?P<lotacao>.+?)\s*$", re.IGNORECASE
 )
+REGEX_CONTADOR_PAGINA = re.compile(r"\b(?P<atual>\d{3})/(?P<total>\d{3})\s*$")
 
 # Regex para cada linha da listagem de férias (SPPC/CONFER - Linhas 11 a 20)
 REGEX_ITEM_LISTA_3270 = re.compile(
-    r"(?P<aquisicao_inicio>\d{2}/\d{2}/\d{2})\s+"
-    r"(?P<aquisicao_fim>\d{2}/\d{2}/\d{2})\s+"
-    r"(?:(?P<previsao_inicio>\d{2}/\d{2}/\d{2})\s+)?"
-    r"(?P<abono>[A-Z])\s+"
-    r"(?P<adiantamento_13>[A-Z])\s+"
+    r"(?P<aquisicao_inicio>\d{2}/\d{2}/\d{2,4})\s+"
+    r"(?P<aquisicao_fim>\d{2}/\d{2}/\d{2,4})\s+"
+    r"(?:(?P<previsao_inicio>\d{2}/\d{2}/\d{2,4})\s+)?"
+    r"(?:(?P<abono>[A-Z])\s+)?"
+    r"(?:(?P<adiantamento_13>[A-Z])\s+)?"
     r"(?P<dias_adquiridos>\d+)\s+"
     r"(?P<status>NP|P)\b"
-    r"(?:\s+(?P<utilizacao_inicio>\d{2}/\d{2}/\d{2})\s+(?P<dias_utilizados>\d+))?"
-    r"(?:\s+(?P<doc_tipo>[A-Z0-9]{2,4})\s+(?P<doc_numero>\S+)\s+(?P<doc_data>\d{2}/\d{2}/\d{2}))?"
+    r"(?:\s+(?P<utilizacao_inicio>\d{2}/\d{2}/\d{2,4})\s+(?P<dias_utilizados>\d+))?"
+    r"(?:\s+(?P<doc_tipo>[A-Z0-9]{2,4})\s+(?P<doc_numero>\S+)\s+(?P<doc_data>\d{2}/\d{2}/\d{2,4}))?"
+)
+
+# Regex para listagem da opção 4: Tempo de Serviço (SPPC/CONATS)
+REGEX_ITEM_CONATS = re.compile(
+    r"^\s*(?P<efe>[A-Z]{2})\s+(?P<tipo>[A-Z]{2})\s+"
+    r"(?P<prestacao>.+?)\s+(?P<dias>\d+)\s+"
+    r"(?P<inicio>\d{2}/\d{2}/\d{2,4})\s+(?P<fim>\d{2}/\d{2}/\d{2,4})\s*$"
+)
+
+# Regex para listagem da opção 13: Licenças (SPPC/CONLCA)
+REGEX_ITEM_CONLCA = re.compile(
+    r"^\s*(?P<licenca>[A-Za-zÀ-ÿ].+?)\s+(?P<dias>\d+)"
+    r"(?:\s+(?P<hora>\d+))?\s+"
+    r"(?P<inicio>\d{2}/\d{2}/\d{2,4})\s+(?P<fim>\d{2}/\d{2}/\d{2,4})"
+    r"(?:\s+(?P<quinq_ini>\d{2}/\d{2}/\d{2,4})\s+(?P<quinq_fim>\d{2}/\d{2}/\d{2,4}))?\s*$"
+)
+
+# Regex para listagem da opção 16: Punições e Elogios (SPPC/CONPUE)
+REGEX_ITEM_CONPUE = re.compile(
+    r"^\s*(?P<tipo>[A-Za-zÀ-ÿ]\S*)\s+(?P<data>\d{2}/\d{2}/\d{2,4})\s+(?P<autoridade>.+?)\s*$"
+)
+
+# Regex genérico para listagem da opção 9: Faltas (SPPC/CONFLT)
+REGEX_ITEM_CONFLT = re.compile(
+    r"^\s*(?P<linha_falta>.*\b\d{2}/\d{2}/\d{2,4}\b.*)\s*$"
 )
 
 # Regex para campos da tela de detalhe NC5F M13A (formato real PRODAM)
@@ -164,36 +191,142 @@ def _formatar_data_3270(raw: Optional[str]) -> Optional[str]:
 
 def parse_cabecalho_solicitante_3270(driver: Base3270Driver) -> Dict[str, Optional[str]]:
     """
-    Extrai o Nome (linha 6) e a Lotação (linha 7) do servidor na tela SPPC/CONFER.
+    Extrai o Nome (linha 6) e a Lotação (linhas 7 ou 8) do servidor nas telas SPPC.
+    Suporta os formatos '211598 0 A NOME' e 'Servidor 211.598-0 A NOME'.
     """
     lines = driver.get_screen_lines()
     nome: Optional[str] = None
     lotacao: Optional[str] = None
 
-    if len(lines) >= 6:
-        match_nome = REGEX_CABECALHO_NOME.search(lines[5])
-        if match_nome:
-            nome_extraido = match_nome.group("nome").strip()
-            if nome_extraido:
-                nome = nome_extraido
+    for idx_nome in (5, 4, 6):
+        if idx_nome < len(lines):
+            match_nome = REGEX_CABECALHO_NOME.search(lines[idx_nome])
+            if match_nome:
+                nome_extraido = match_nome.group("nome").strip()
+                if nome_extraido:
+                    nome = nome_extraido
+                    break
 
-    if len(lines) >= 7:
-        match_lot = REGEX_CABECALHO_LOTACAO.search(lines[6])
-        if match_lot:
-            lot_extraida = " ".join(match_lot.group("lotacao").split())
-            if lot_extraida:
-                lotacao = lot_extraida
+    for idx_lot in (6, 7, 8):
+        if idx_lot < len(lines):
+            match_lot = REGEX_CABECALHO_LOTACAO.search(lines[idx_lot])
+            if match_lot:
+                lot_extraida = " ".join(match_lot.group("lotacao").split())
+                if lot_extraida:
+                    lotacao = lot_extraida
+                    break
 
     return {"nome": nome, "lotacao": lotacao}
 
 
-def _acumular_linha_ferias(
+def _extrair_contador_pagina(lines: List[str]) -> Optional[Tuple[int, int]]:
+    """Extrai o contador de página (atual, total) do topo da tela (ex: '001/002' na linha 3)."""
+    for line in lines[:4]:
+        match = REGEX_CONTADOR_PAGINA.search(line)
+        if match:
+            return (int(match.group("atual")), int(match.group("total")))
+    return None
+
+
+# pylint: disable=too-many-locals
+def _parse_linha_consulta_simples(
+    line: str,
+    opcao_consulta: str,
+    indice_proximo: int,
+    row_idx: int,
+) -> Optional[Dict[str, Any]]:
+    """Interpreta uma linha das telas de leitura simples (opções 4, 9, 13 e 16)."""
+    opc = opcao_consulta.strip()
+
+    if opc == "4":
+        m_ats = REGEX_ITEM_CONATS.search(line)
+        if m_ats:
+            efe = m_ats.group("efe")
+            tipo = m_ats.group("tipo")
+            prest = " ".join(m_ats.group("prestacao").split())
+            dias = int(m_ats.group("dias"))
+            ini = m_ats.group("inicio")
+            fim = m_ats.group("fim")
+            return {
+                "indice": indice_proximo,
+                "id": f"{prest} ({ini} a {fim})",
+                "descricao": f"Efe: {efe} | Tipo: {tipo} | Dias: {dias} | Período: {ini} a {fim}",
+                "aquisicao_inicio": ini,
+                "aquisicao_fim": fim,
+                "dias_adquiridos": dias,
+                "status": f"{efe}/{tipo}",
+                "row": row_idx,
+                "rows": [row_idx],
+                "check_col": COLUNA_CHECKBOX_MARCAR,
+            }
+
+    elif opc == "13":
+        m_lca = REGEX_ITEM_CONLCA.search(line)
+        if m_lca:
+            lic = " ".join(m_lca.group("licenca").split())
+            dias = int(m_lca.group("dias"))
+            ini = m_lca.group("inicio")
+            fim = m_lca.group("fim")
+            q_ini = m_lca.group("quinq_ini")
+            q_fim = m_lca.group("quinq_fim")
+            desc = f"Dias: {dias} | Início: {ini} | Final: {fim}"
+            if q_ini and q_fim:
+                desc += f" | Quinquênio: {q_ini} a {q_fim}"
+            return {
+                "indice": indice_proximo,
+                "id": f"{lic} ({ini} a {fim})",
+                "descricao": desc,
+                "aquisicao_inicio": ini,
+                "aquisicao_fim": fim,
+                "dias_adquiridos": dias,
+                "status": f"{dias}d",
+                "row": row_idx,
+                "rows": [row_idx],
+                "check_col": COLUNA_CHECKBOX_MARCAR,
+            }
+
+    elif opc == "16":
+        m_pue = REGEX_ITEM_CONPUE.search(line)
+        if m_pue:
+            tipo = m_pue.group("tipo").strip()
+            data = m_pue.group("data").strip()
+            aut = " ".join(m_pue.group("autoridade").split())
+            return {
+                "indice": indice_proximo,
+                "id": f"{tipo} — {data}",
+                "descricao": f"Data: {data} | Autoridade: {aut}",
+                "doc_data": data,
+                "status": tipo,
+                "row": row_idx,
+                "rows": [row_idx],
+                "check_col": COLUNA_CHECKBOX_MARCAR,
+            }
+
+    elif opc == "9":
+        if "inicio.:" not in line.lower() and "fim....:" not in line.lower():
+            m_flt = REGEX_ITEM_CONFLT.search(line)
+            if m_flt:
+                texto = " ".join(m_flt.group("linha_falta").split())
+                return {
+                    "indice": indice_proximo,
+                    "id": texto,
+                    "descricao": f"Registro de falta: {texto}",
+                    "status": "Falta",
+                    "row": row_idx,
+                    "rows": [row_idx],
+                    "check_col": COLUNA_CHECKBOX_MARCAR,
+                }
+
+    return None
+
+
+def acumular_linha_ferias(
     por_periodo: Dict[Tuple[str, str], Dict[str, Any]],
     match: re.Match[str],
     pagina_atual: int,
     row_idx: int,
-) -> None:
-    """Consolida uma linha da tabela de férias (MC5A NC5A) por período aquisitivo."""
+) -> int:
+    """Consolida uma linha da tabela de férias (MC5A NC5A) e retorna o índice do período."""
     aq_ini = match.group("aquisicao_inicio")
     aq_fim = match.group("aquisicao_fim")
     dias_adq = int(match.group("dias_adquiridos"))
@@ -240,23 +373,119 @@ def _acumular_linha_ferias(
             existente["doc_numero"] = doc_num
             existente["doc_data"] = doc_data
 
+    return int(por_periodo[chave]["indice"])
+
+
+def avancar_pagina_3270(driver: Base3270Driver, opcao_consulta: str = "10") -> None:
+    """
+    Avança para a próxima página de registros no terminal 3270:
+    - Na opção 10 (Férias / SPPC-CONFER), a paginação é feita com ENTER.
+    - Nas demais opções (4, 9, 13, 16), a paginação é feita com PF8 (TECLA_PF_AVANCAR_PAGINA).
+    """
+    if opcao_consulta.strip() == "10":
+        driver.send_enter()
+    else:
+        driver.send_pf(TECLA_PF_AVANCAR_PAGINA)
+
+
+def ler_linhas_ferias_pagina_3270(
+    lines: List[str],
+    por_periodo: Dict[Tuple[str, str], Dict[str, Any]],
+    pagina_atual: int,
+) -> List[Tuple[int, int]]:
+    """
+    Lê as linhas da página atual (11..20) na tela SPPC/CONFER, acumula em por_periodo
+    e retorna pares (row_idx, indice_periodo) encontrados na página.
+    """
+    encontrados: List[Tuple[int, int]] = []
+    for row_idx in range(LINHA_INICIAL_REGISTROS, LINHA_FINAL_REGISTROS + 1):
+        if row_idx <= len(lines):
+            match = REGEX_ITEM_LISTA_3270.search(lines[row_idx - 1])
+            if match:
+                idx_periodo = acumular_linha_ferias(
+                    por_periodo, match, pagina_atual, row_idx
+                )
+                encontrados.append((row_idx, idx_periodo))
+    return encontrados
+
+
+def _parse_lista_consultas_simples_3270(
+    driver: Base3270Driver,
+    opcao_consulta: str,
+    paginar: bool = True,
+) -> List[Dict[str, Any]]:
+    """
+    Percorre todas as páginas das consultas de leitura simples (4 - CONATS, 9 - CONFLT,
+    13 - CONLCA e 16 - CONPUE), paginando com PF8 e respeitando o contador PPP/TTT.
+    """
+    registros: List[Dict[str, Any]] = []
+    paginas_vistas: set[Tuple[str, ...]] = set()
+    pagina_atual = 1
+
+    while pagina_atual <= 50:
+        lines = driver.get_screen_lines()
+        linha_topo = lines[0].strip().lower() if lines else ""
+        if "não existem" in linha_topo or "nao existem" in linha_topo:
+            break
+
+        fatia_tabela = tuple(lines[9:22])
+        if not any(l.strip() for l in fatia_tabela) or fatia_tabela in paginas_vistas:
+            break
+        paginas_vistas.add(fatia_tabela)
+
+        encontrou_na_pagina = False
+        for row_idx in range(10, 23):
+            if row_idx <= len(lines):
+                item = _parse_linha_consulta_simples(
+                    lines[row_idx - 1],
+                    opcao_consulta,
+                    len(registros) + 1,
+                    row_idx,
+                )
+                if item is not None:
+                    encontrou_na_pagina = True
+                    registros.append(item)
+
+        contador = _extrair_contador_pagina(lines)
+        if (
+            not paginar
+            or not encontrou_na_pagina
+            or (contador is not None and contador[0] >= contador[1])
+        ):
+            break
+
+        driver.send_pf(TECLA_PF_AVANCAR_PAGINA)
+        if contador is not None and tuple(driver.get_screen_lines()[9:22]) == fatia_tabela:
+            driver.send_enter()
+
+        pagina_atual += 1
+        if driver.get_string(1, 1, 80).strip().startswith(PREFIXO_ERRO_TELA_SOLICITANTE):
+            break
+
+    return registros
+
 
 # pylint: disable=too-many-locals
 def parse_lista_registros_3270(
     driver: Base3270Driver,
     paginar: bool = True,
+    opcao_consulta: str = "10",
 ) -> List[Dict[str, Any]]:
     """
-    Percorre as linhas da matriz 24x80 na tela SPPC/CONFER (paginando com PF8 quando necessário)
-    e consolida períodos aquisitivos repetidos em uma única linha por período,
-    exibindo Adq, Util (soma no período) e Saldo.
+    Percorre todas as páginas da matriz 24x80 na tela de consulta:
+    - Na opção 10 (Férias / SPPC-CONFER): pagina com ENTER e consolida períodos aquisitivos.
+    - Nas opções 4, 9, 13 e 16: pagina com PF8 e extrai todas as linhas de registro.
     """
+    if opcao_consulta.strip() != "10":
+        return _parse_lista_consultas_simples_3270(
+            driver, opcao_consulta=opcao_consulta, paginar=paginar
+        )
+
     por_periodo: Dict[Tuple[str, str], Dict[str, Any]] = {}
     paginas_vistas: set[Tuple[str, ...]] = set()
     pagina_atual = 1
-    max_paginas = 20
 
-    while pagina_atual <= max_paginas:
+    while pagina_atual <= 50:
         lines = driver.get_screen_lines()
         fatia_tabela = tuple(
             lines[LINHA_INICIAL_REGISTROS - 1 : LINHA_FINAL_REGISTROS]
@@ -265,22 +494,13 @@ def parse_lista_registros_3270(
             break
         paginas_vistas.add(fatia_tabela)
 
-        ultima_linha_preenchida = False
-        for row_idx in range(LINHA_INICIAL_REGISTROS, LINHA_FINAL_REGISTROS + 1):
-            if row_idx <= len(lines):
-                match = REGEX_ITEM_LISTA_3270.search(lines[row_idx - 1])
-                if match:
-                    if row_idx == LINHA_FINAL_REGISTROS:
-                        ultima_linha_preenchida = True
-                    _acumular_linha_ferias(por_periodo, match, pagina_atual, row_idx)
-
-        if not paginar or not ultima_linha_preenchida:
+        encontrados = ler_linhas_ferias_pagina_3270(lines, por_periodo, pagina_atual)
+        if not paginar or not encontrados:
             break
 
-        driver.send_pf(TECLA_PF_AVANCAR_PAGINA)
+        avancar_pagina_3270(driver, opcao_consulta=opcao_consulta)
         pagina_atual += 1
-        linha_topo = driver.get_string(1, 1, 80).strip()
-        if linha_topo.startswith(PREFIXO_ERRO_TELA_SOLICITANTE):
+        if driver.get_string(1, 1, 80).strip().startswith(PREFIXO_ERRO_TELA_SOLICITANTE):
             break
 
     registros = list(por_periodo.values())
