@@ -2,9 +2,9 @@
 Aplicação FastAPI para a API de Automação de Terminal Legado.
 """
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from automacao.api.endpoints import router as api_router
 from automacao.core.config import settings

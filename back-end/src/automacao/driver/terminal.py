@@ -1,4 +1,5 @@
 """Módulo de conexão e factory para drivers de terminal IBM TN3270 (pw3270, py3270, mock)."""
+
 # pylint: disable=broad-exception-caught,import-outside-toplevel,too-few-public-methods
 
 import logging
@@ -98,6 +99,7 @@ class Pw3270Driver(Base3270Driver):
     def __init__(self, session_name: str = ":a"):
         try:
             import tn3270  # type: ignore[import-not-found]
+
             self.lib = tn3270
             self.session = tn3270.Session(session_name)
         except ImportError as exc:
@@ -127,7 +129,9 @@ class Pw3270Driver(Base3270Driver):
     def is_connected(self) -> bool:
         return bool(getattr(self.session, "connected", False))
 
-    def send_string(self, value: str, row: Optional[int] = None, col: Optional[int] = None) -> None:
+    def send_string(
+        self, value: str, row: Optional[int] = None, col: Optional[int] = None
+    ) -> None:
         if row is not None and col is not None:
             try:
                 self.session.cursor = (row, col)
@@ -197,6 +201,7 @@ class Py3270Driver(Base3270Driver):
         self._tls_bridge: Optional[_TlsLegacyBridge] = None
         try:
             from py3270 import Emulator  # type: ignore[import-untyped]
+
             self.em = Emulator(
                 visible=False,
                 args=["-xrm", "s3270.verifyHostCert: false"],
@@ -233,7 +238,9 @@ class Py3270Driver(Base3270Driver):
     def is_connected(self) -> bool:
         return self.em.is_connected()
 
-    def send_string(self, value: str, row: Optional[int] = None, col: Optional[int] = None) -> None:
+    def send_string(
+        self, value: str, row: Optional[int] = None, col: Optional[int] = None
+    ) -> None:
         self.em.send_string(value, ypos=row, xpos=col)
 
     def send_enter(self) -> None:
@@ -328,7 +335,9 @@ def conectar_terminal_3270(config: Optional[Settings] = None) -> Base3270Driver:
         )
         return pw_driver
     except Exception as e_pw:
-        logger.warning("pw3270 nativo não disponível: %s. Tentando py3270 (s3270)...", e_pw)
+        logger.warning(
+            "pw3270 nativo não disponível: %s. Tentando py3270 (s3270)...", e_pw
+        )
 
     # Fallback para py3270 / s3270
     try:
@@ -342,9 +351,5 @@ def conectar_terminal_3270(config: Optional[Settings] = None) -> Base3270Driver:
         return py_driver
     except Exception as e_py:
         logger.error("Nenhum emulador 3270 disponível no sistema: %s", e_py)
-        msg_erro = (
-            f"Não foi possível conectar ao host TN3270 {cfg.HOST}:{cfg.PORT} "
-            f"(secure={cfg.SECURE_CONNECTION}). "
-            "Certifique-se de ter o python3-tn3270 ou s3270 instalados."
-        )
+        msg_erro = "Não foi possível conectar ao sistema"
         raise RuntimeError(msg_erro) from e_py
