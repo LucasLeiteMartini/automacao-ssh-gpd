@@ -43,12 +43,39 @@ class ConsultaRegistrosRequest(BaseModel):
         pattern=r"^(4|9|10|13|16)$",
         description="Código da consulta no menu SPPC/CONSULTA (4, 9, 10, 13 ou 16)",
     )
+    forcar_atualizacao: bool = Field(
+        False,
+        description="Ignora o cache em memória e força nova leitura direta no mainframe",
+    )
+
+
+class RegistroDetalhe(BaseModel):
+    """Campos detalhados de um registro extraído da tela NC5F M13A da PRODAM."""
+    id: Optional[str] = Field(None, description="Período aquisitivo do registro")
+    aquisicao: Optional[str] = Field(None, description="Período de aquisição formatado")
+    dias_adquiridos: int = Field(0, description="Dias adquiridos no período")
+    dias_utilizados: int = Field(0, description="Dias utilizados no registro")
+    dias_restantes: int = Field(0, description="Saldo restante (Adquiridos - Utilizados)")
+    situacao: Optional[str] = Field(None, description="Situação (Pendente / Nao Pendente)")
+    previsao: Optional[str] = Field(None, description="Período de previsão (Inicial a Final)")
+    utilizacao: Optional[str] = Field(None, description="Período de utilização (Inicial a Final)")
+    dias_gozados: int = Field(0, description="Quantidade de dias gozados na utilização")
+    doc_tipo: Optional[str] = Field(None, description="Tipo do documento (ex: MEM)")
+    doc_numero: Optional[str] = Field(None, description="Número do documento (ex: 001510)")
+    doc_data: Optional[str] = Field(None, description="Data do documento (ex: 01/06/2012)")
+    observacao: Optional[str] = Field(None, description="Observação registrada no documento")
+    tipo: Optional[str] = Field(None, description="Tipo e número do documento")
+    valor: Optional[str] = Field(
+        None, description="Resumo de dias adquiridos, utilizados e restantes"
+    )
+    status: Optional[str] = Field(None, description="Status detalhado")
+    data: Optional[str] = Field(None, description="Data do documento")
 
 
 class RegistroItem(BaseModel):
-    """Item de férias retornado na listagem da Fase 1 (SPPC/CONFER)."""
-    indice: int = Field(..., description="Índice ordinal de exibição no terminal (1 a 10)")
-    id: str = Field(..., description="Período aquisitivo identificador")
+    """Item retornado na listagem da Fase 1 (com detalhes pré-carregados na opção 10)."""
+    indice: int = Field(..., description="Índice ordinal de exibição no terminal (1 a N)")
+    id: str = Field(..., description="Período aquisitivo ou identificador do registro")
     descricao: str = Field(..., description="Resumo legível do registro e saldo")
     aquisicao_inicio: Optional[str] = Field(None, description="Data inicial do período aquisitivo")
     aquisicao_fim: Optional[str] = Field(None, description="Data final do período aquisitivo")
@@ -66,6 +93,10 @@ class RegistroItem(BaseModel):
     doc_tipo: Optional[str] = Field(None, description="Tipo do documento (ex: MEM)")
     doc_numero: Optional[str] = Field(None, description="Número do documento (ex: 001510)")
     doc_data: Optional[str] = Field(None, description="Data do documento")
+    detalhes: List[RegistroDetalhe] = Field(
+        default_factory=list,
+        description="Telas de detalhe NC5F M13A pré-extraídas na conexão única",
+    )
 
 
 class ConsultaRegistrosResponse(BaseModel):
@@ -94,29 +125,6 @@ class DetalhesRequest(BaseModel):
         ...,
         description="Lista de índices numéricos para marcar com 'X'",
     )
-
-
-class RegistroDetalhe(BaseModel):
-    """Campos detalhados de um registro extraído na Fase 2 (Tela NC5F M13A da PRODAM)."""
-    id: Optional[str] = Field(None, description="Período aquisitivo do registro")
-    aquisicao: Optional[str] = Field(None, description="Período de aquisição formatado")
-    dias_adquiridos: int = Field(0, description="Dias adquiridos no período")
-    dias_utilizados: int = Field(0, description="Dias utilizados no registro")
-    dias_restantes: int = Field(0, description="Saldo restante (Adquiridos - Utilizados)")
-    situacao: Optional[str] = Field(None, description="Situação (Pendente / Nao Pendente)")
-    previsao: Optional[str] = Field(None, description="Período de previsão (Inicial a Final)")
-    utilizacao: Optional[str] = Field(None, description="Período de utilização (Inicial a Final)")
-    dias_gozados: int = Field(0, description="Quantidade de dias gozados na utilização")
-    doc_tipo: Optional[str] = Field(None, description="Tipo do documento (ex: MEM)")
-    doc_numero: Optional[str] = Field(None, description="Número do documento (ex: 001510)")
-    doc_data: Optional[str] = Field(None, description="Data do documento (ex: 01/06/2012)")
-    observacao: Optional[str] = Field(None, description="Observação registrada no documento")
-    tipo: Optional[str] = Field(None, description="Tipo e número do documento")
-    valor: Optional[str] = Field(
-        None, description="Resumo de dias adquiridos, utilizados e restantes"
-    )
-    status: Optional[str] = Field(None, description="Status detalhado")
-    data: Optional[str] = Field(None, description="Data do documento")
 
 
 class DetalhesResponse(BaseModel):

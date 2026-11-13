@@ -39,6 +39,7 @@ async def consultar_registros(payload: ConsultaRegistrosRequest):
             digito=payload.digito,
             sequencia=payload.sequencia,
             opcao_consulta=payload.opcao_consulta,
+            forcar_atualizacao=payload.forcar_atualizacao,
         )
         return resultado
     except CadastroInexistenteError as e:

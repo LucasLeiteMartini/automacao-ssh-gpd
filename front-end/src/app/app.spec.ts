@@ -8,6 +8,7 @@ describe('App (Integração Front-End)', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
+    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideHttpClient(), provideHttpClientTesting()],
@@ -17,6 +18,7 @@ describe('App (Integração Front-End)', () => {
   });
 
   afterEach(() => {
+    sessionStorage.clear();
     httpMock.verify();
   });
 
@@ -61,6 +63,7 @@ describe('App (Integração Front-End)', () => {
       digito: '0',
       sequencia: 'A',
       opcao_consulta: '10',
+      forcar_atualizacao: false,
     });
 
     const respostaConsolidada: ConsultaRegistrosResponse = {
@@ -168,5 +171,84 @@ describe('App (Integração Front-End)', () => {
     expect(compiled.textContent).toContain('MEM');
     expect(compiled.textContent).toContain('000035');
     expect(compiled.textContent).toContain('FERIAS CONCEDIDAS DPI/PC');
+  });
+
+  it('deve exibir detalhes instantaneamente do cache em conexão única e reutilizar sessionStorage até clicar em Atualizar', () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock.expectOne('/health').flush({ status: 'online', operador_ocupado: false });
+
+    const reqPayload = {
+      matricula: '211598',
+      digito: '0',
+      sequencia: 'A',
+      opcao_consulta: '10' as const,
+    };
+
+    // 1ª busca: vai ao back-end e já recebe os detalhes embutidos
+    app.onBuscar(reqPayload);
+    const req1 = httpMock.expectOne('/api/solicitante/registros');
+    req1.flush({
+      solicitante: {
+        ...reqPayload,
+        nome: 'DOUGLAS ANDRE FONSECA BARBOSA',
+        lotacao: 'GERENCIA DE INFORMATICA',
+      },
+      registros: [
+        {
+          indice: 1,
+          id: '01/01/16 a 01/01/17',
+          descricao: 'Adq: 30d | Util: 0d | Saldo: 30d',
+          dias_adquiridos: 30,
+          status: 'P',
+          dias_utilizados: 0,
+          dias_utilizados_periodo: 0,
+          saldo_disponivel: 30,
+          detalhes: [
+            {
+              id: '01/01/2016 a 01/01/2017',
+              aquisicao: '01/01/2016 a 01/01/2017',
+              dias_adquiridos: 30,
+              dias_utilizados: 0,
+              dias_restantes: 30,
+              situacao: 'Pendente.: 30',
+              doc_tipo: 'MEM',
+              doc_numero: '000094',
+              doc_data: '24/03/2017',
+              observacao: 'FERIAS PENDENTES',
+              tipo: 'MEM 000094',
+              valor: 'Adquiridos: 30 | Utilizados: 00 | Restantes: 30',
+              status: 'Pendente.: 30',
+              data: '24/03/2017',
+            },
+          ],
+        },
+      ],
+    });
+    httpMock.expectOne('/health').flush({ status: 'online', operador_ocupado: false });
+
+    // Clicar em Detalhar abre a etapa 'detalhes' instantaneamente (0 chamadas para /api/solicitante/detalhes)
+    app.onConfirmarDetalhes([1]);
+    expect(app.etapa()).toBe('detalhes');
+    expect(app.dadosDetalhes().length).toBe(1);
+    expect(app.dadosDetalhes()[0].doc_numero).toBe('000094');
+
+    // Nova busca para a mesma matrícula: lida 100% do sessionStorage (0 chamadas para /api/solicitante/registros)
+    app.onBuscar(reqPayload);
+    httpMock.expectNone('/api/solicitante/registros');
+    httpMock.expectOne('/health').flush({ status: 'online', operador_ocupado: false });
+    expect(app.etapa()).toBe('lista');
+
+    // Clicar em Atualizar força releitura ignorando o cache (forcar_atualizacao: true)
+    app.onAtualizarConsulta();
+    const reqForcada = httpMock.expectOne('/api/solicitante/registros');
+    expect(reqForcada.request.body.forcar_atualizacao).toBe(true);
+    reqForcada.flush({
+      solicitante: { ...reqPayload, nome: 'DOUGLAS ANDRE FONSECA BARBOSA' },
+      registros: [],
+    });
+    httpMock.expectOne('/health').flush({ status: 'online', operador_ocupado: false });
   });
 });

@@ -15,14 +15,17 @@ from automacao.driver.parsers import (
     parse_lista_registros_3270,
 )
 from automacao.main import app
+from automacao.services.automacao_service import automacao_service
 
 
 @pytest.fixture(autouse=True)
 def _forcar_modo_mock_nos_testes():
-    """Garante que a suíte de testes unitários use o Mock3270Driver mesmo com MODO_TESTE_LOCAL=false no .env."""
+    """Garante que a suíte de testes unitários use o Mock3270Driver e inicie com cache limpo."""
     valor_original = settings.MODO_TESTE_LOCAL
     object.__setattr__(settings, "MODO_TESTE_LOCAL", True)
+    automacao_service.limpar_cache()
     yield
+    automacao_service.limpar_cache()
     object.__setattr__(settings, "MODO_TESTE_LOCAL", valor_original)
 
 
@@ -544,5 +547,74 @@ def test_consultas_4_9_13_16_paginacao_pf8_e_leitura_buffer(monkeypatch):
             assert len(d16["registros"]) == 3
             assert "05/12/16" in d16["registros"][0]["id"]
             assert "07/08/19" in d16["registros"][2]["id"]
+
+    asyncio.run(_run())
+
+
+def test_conexao_unica_ferias_e_cache_ttl(monkeypatch):
+    """
+    Valida que:
+    1. A consulta inicial da opção 10 (Férias) já traz todos os detalhes NC5F M13A embutidos
+       em uma única conexão TN3270.
+    2. Consultas subsequentes à mesma matrícula/opção (ou chamada a /detalhes) são atendidas
+       diretamente pelo cache em memória sem abrir nova conexão TN3270.
+    3. Enviar forcar_atualizacao=True ignora o cache e realiza nova leitura no terminal.
+    """
+    drivers_criados = []
+
+    def _factory_spy(config=None):
+        drv = Mock3270Driver()
+        drv.connect("127.0.0.1", 992, secure=True)
+        drivers_criados.append(drv)
+        return drv
+
+    monkeypatch.setattr(
+        "automacao.services.automacao_service.conectar_terminal_3270",
+        _factory_spy,
+    )
+
+    async def _run():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            payload = {
+                "matricula": "211598",
+                "digito": "0",
+                "sequencia": "A",
+                "opcao_consulta": "10",
+            }
+            # 1ª chamada: abre 1 conexão TN3270 e já traz lista + todos os detalhes NC5F M13A
+            r1 = await client.post("/api/solicitante/registros", json=payload)
+            assert r1.status_code == 200
+            dados1 = r1.json()
+            assert len(drivers_criados) == 1
+            assert len(dados1["registros"]) == 7
+            # Período #1 tem 1 detalhe; Período #3 (parcelado em 2x) tem 2 detalhes embutidos
+            assert len(dados1["registros"][0]["detalhes"]) == 1
+            assert dados1["registros"][0]["detalhes"][0]["doc_numero"] == "001510"
+            assert len(dados1["registros"][2]["detalhes"]) == 2
+            assert dados1["registros"][2]["detalhes"][0]["doc_numero"] == "000035"
+            assert dados1["registros"][2]["detalhes"][1]["doc_numero"] == "000555"
+
+            # 2ª chamada idêntica: atendida 100% pelo cache em memória (nenhum novo driver criado)
+            r2 = await client.post("/api/solicitante/registros", json=payload)
+            assert r2.status_code == 200
+            assert len(drivers_criados) == 1
+
+            # Chamada ao endpoint /detalhes: atendida pelo cache em memória (nenhum novo driver)
+            r_det = await client.post(
+                "/api/solicitante/detalhes",
+                json={**payload, "indices_selecionados": [1, 3]},
+            )
+            assert r_det.status_code == 200
+            assert len(r_det.json()["dados"]) == 3
+            assert len(drivers_criados) == 1
+
+            # Chamada com forcar_atualizacao=True: abre 2ª conexão TN3270 para releitura
+            r3 = await client.post(
+                "/api/solicitante/registros",
+                json={**payload, "forcar_atualizacao": True},
+            )
+            assert r3.status_code == 200
+            assert len(drivers_criados) == 2
 
     asyncio.run(_run())

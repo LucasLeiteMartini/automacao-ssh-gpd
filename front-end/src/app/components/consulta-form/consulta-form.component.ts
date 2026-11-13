@@ -51,7 +51,7 @@ export interface OpcaoConsultaItem {
               </select>
             </div>
           </div>
-          
+
           <!-- Matrícula: 6 dígitos numéricos -->
           <div class="col-12 col-md-5">
             <label class="form-label small fw-semibold text-muted mb-1" for="matricula">
@@ -68,7 +68,6 @@ export interface OpcaoConsultaItem {
                 class="form-control"
                 style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
                 formControlName="matricula"
-                placeholder="000000"
                 inputmode="numeric"
                 autocomplete="off"
                 [class.is-invalid]="form.get('matricula')?.invalid && form.get('matricula')?.touched"
@@ -91,7 +90,6 @@ export interface OpcaoConsultaItem {
               class="form-control text-center fw-bold"
               style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
               formControlName="digito"
-              placeholder="0"
               inputmode="numeric"
               autocomplete="off"
               [class.is-invalid]="form.get('digito')?.invalid && form.get('digito')?.touched"
@@ -113,7 +111,6 @@ export interface OpcaoConsultaItem {
               class="form-control text-center fw-bold"
               style="background-color: var(--surface-card); border-color: var(--border-color); color: var(--bs-body-color);"
               formControlName="sequencia"
-              placeholder="X"
               inputmode="text"
               autocomplete="off"
               [class.is-invalid]="form.get('sequencia')?.invalid && form.get('sequencia')?.touched"
@@ -126,7 +123,7 @@ export interface OpcaoConsultaItem {
         </div>
 
         <!-- Botões de Ação -->
-        <div class="d-flex flex-column flex-sm-row justify-content-end align-items-stretch align-items-sm-center gap-2 mt-3 pt-2 border-top" 
+        <div class="d-flex flex-column flex-sm-row justify-content-end align-items-stretch align-items-sm-center gap-2 mt-3 pt-2 border-top"
              style="border-color: var(--border-color) !important;">
           <button
             type="submit"
@@ -146,9 +143,9 @@ export class ConsultaFormComponent {
 
   readonly opcoesConsulta: readonly OpcaoConsultaItem[] = [
     { codigo: '4', label: 'Tempo de serviço' },
-    { codigo: '9', label: 'Faltas' },
+    { codigo: '9', label: 'Faltas Registradas' },
     { codigo: '10', label: 'Férias' },
-    { codigo: '13', label: 'Licenças' },
+    { codigo: '13', label: 'Licenças Retiradas' },
     { codigo: '16', label: 'Punições e elogios' },
   ];
 

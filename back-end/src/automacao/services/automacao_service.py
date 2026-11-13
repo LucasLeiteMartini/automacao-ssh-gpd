@@ -4,9 +4,11 @@ Executa os fluxos de consulta de férias e cálculo de saldo em matriz 24x80 sob
 """
 
 import asyncio
+from collections import OrderedDict
+import copy
 import logging
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from automacao.core.config import settings
 from automacao.core.security import (
@@ -180,6 +182,7 @@ def _executar_busca_registros_sync(
             driver,
             opcao_consulta=opcao_consulta,
             paginar=True,
+            incluir_detalhes=opcao_consulta.strip() == "10",
         )
     finally:
         try:
@@ -304,24 +307,86 @@ def _executar_extracao_detalhes_sync(
 
 
 class AutomacaoService:
-    """Orquestrador assíncrono para os fluxos TN3270 sob mutex."""
+    """
+    Orquestrador assíncrono para os fluxos TN3270 sob mutex, com cache LRU+TTL em memória.
+    ponytail: cache em memória por processo (suficiente para worker único com operator_lock);
+    se escalar para múltiplos processos separados, migrar para Redis/SQLite compartilhado.
+    """
 
+    def __init__(self) -> None:
+        self._cache: OrderedDict[
+            Tuple[str, str, str, str], Tuple[float, Dict[str, Any]]
+        ] = OrderedDict()
+
+    def limpar_cache(self) -> None:
+        """Remove todas as entradas armazenadas no cache em memória."""
+        self._cache.clear()
+
+    def _obter_do_cache(
+        self, chave: Tuple[str, str, str, str]
+    ) -> Optional[Dict[str, Any]]:
+        item = self._cache.get(chave)
+        if item is None:
+            return None
+        expira_em, dados = item
+        if time.monotonic() > expira_em:
+            self._cache.pop(chave, None)
+            return None
+        self._cache.move_to_end(chave)
+        return copy.deepcopy(dados)
+
+    def _salvar_no_cache(
+        self, chave: Tuple[str, str, str, str], dados: Dict[str, Any]
+    ) -> None:
+        ttl = settings.CACHE_TTL_SEGUNDOS
+        max_entradas = settings.CACHE_MAX_ENTRADAS
+        if ttl <= 0 or max_entradas <= 0:
+            return
+        self._cache[chave] = (time.monotonic() + ttl, copy.deepcopy(dados))
+        self._cache.move_to_end(chave)
+        while len(self._cache) > max_entradas:
+            self._cache.popitem(last=False)
+
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     async def buscar_registros(
         self,
         matricula: str,
         digito: str,
         sequencia: str,
         opcao_consulta: str,
+        forcar_atualizacao: bool = False,
     ) -> Dict[str, Any]:
-        """Fase 1: Adquire a trava do operador e obtém a lista e saldo de férias via TN3270."""
+        """
+        Fase 1 (Conexão Única):
+        Retorna imediatamente do cache em memória se válido; caso contrário, adquire
+        a trava do operador e obtém a lista + detalhes via TN3270 em uma única sessão.
+        """
+        chave = (
+            matricula.strip(),
+            digito.strip(),
+            sequencia.strip().upper(),
+            opcao_consulta.strip(),
+        )
+        if not forcar_atualizacao:
+            em_cache = self._obter_do_cache(chave)
+            if em_cache is not None:
+                return em_cache
+
         async with operator_lock.acquire():
-            return await asyncio.to_thread(
+            if not forcar_atualizacao:
+                em_cache = self._obter_do_cache(chave)
+                if em_cache is not None:
+                    return em_cache
+
+            resultado = await asyncio.to_thread(
                 _executar_busca_registros_sync,
                 matricula,
                 digito,
                 solicitante_sequencia=sequencia,
                 opcao_consulta=opcao_consulta,
             )
+            self._salvar_no_cache(chave, resultado)
+            return resultado
 
     async def extrair_detalhes(
         self,
@@ -331,7 +396,27 @@ class AutomacaoService:
         indices_selecionados: List[int],
         opcao_consulta: str,
     ) -> List[Dict[str, Any]]:
-        """Fase 2: Adquire a trava do operador e extrai detalhes marcados via TN3270."""
+        """
+        Fase 2:
+        Retorna os detalhes diretamente do cache em memória caso a consulta já tenha sido
+        realizada; caso contrário, adquire a trava do operador e extrai via TN3270.
+        """
+        chave = (
+            matricula.strip(),
+            digito.strip(),
+            sequencia.strip().upper(),
+            opcao_consulta.strip(),
+        )
+        em_cache = self._obter_do_cache(chave)
+        if em_cache is not None:
+            conjunto_indices = set(indices_selecionados)
+            detalhes_cache: List[Dict[str, Any]] = []
+            for reg in em_cache.get("registros", []):
+                if reg.get("indice") in conjunto_indices:
+                    detalhes_cache.extend(reg.get("detalhes", []))
+            if detalhes_cache:
+                return detalhes_cache
+
         async with operator_lock.acquire():
             return await asyncio.to_thread(
                 _executar_extracao_detalhes_sync,

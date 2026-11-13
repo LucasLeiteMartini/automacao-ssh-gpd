@@ -59,5 +59,9 @@ class Settings:
     API_HOST: str = _env_str("API_HOST")
     API_PORT: int = int(_env_str("API_PORT"))
 
+    # Cache em Memória (TTL e Limite LRU)
+    CACHE_TTL_SEGUNDOS: int = int(os.environ.get("CACHE_TTL_SEGUNDOS", "600").strip('"\' '))
+    CACHE_MAX_ENTRADAS: int = int(os.environ.get("CACHE_MAX_ENTRADAS", "200").strip('"\' '))
+
 
 settings = Settings()

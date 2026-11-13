@@ -55,12 +55,12 @@ export class App implements OnInit {
     });
   }
 
-  onBuscar(req: ConsultaRegistrosRequest): void {
+  onBuscar(req: ConsultaRegistrosRequest, forcarAtualizacao = false): void {
     this.erroMensagem.set(null);
     this.solicitanteAtivo.set(req);
     this.etapa.set('loading_busca');
 
-    this.automacaoService.buscarRegistros(req).subscribe({
+    this.automacaoService.buscarRegistros(req, forcarAtualizacao).subscribe({
       next: (resp) => {
         this.dadosLista.set(resp);
         this.etapa.set('lista');
@@ -74,11 +74,30 @@ export class App implements OnInit {
     });
   }
 
+  onAtualizarConsulta(): void {
+    const sol = this.solicitanteAtivo();
+    if (!sol) return;
+    this.onBuscar(sol, true);
+  }
+
   onConfirmarDetalhes(indices: number[]): void {
     const sol = this.solicitanteAtivo();
     if (!sol) return;
 
     this.erroMensagem.set(null);
+
+    const registrosAtuais = this.dadosLista()?.registros ?? [];
+    const conjuntoIndices = new Set(indices);
+    const detalhesPreCarregados = registrosAtuais
+      .filter((r) => conjuntoIndices.has(r.indice))
+      .flatMap((r) => r.detalhes ?? []);
+
+    if (detalhesPreCarregados.length > 0) {
+      this.dadosDetalhes.set(detalhesPreCarregados);
+      this.etapa.set('detalhes');
+      return;
+    }
+
     this.etapa.set('loading_detalhes');
 
     this.automacaoService

@@ -40,12 +40,23 @@ export type FiltroFerias = 'pendentes' | 'todos';
           </div>
 
           <!-- Resumo de Saldo Total e Controles -->
-          @if (permiteDetalhes()) {
-            <div class="d-flex flex-wrap align-items-center gap-2 w-100 w-md-auto justify-content-between justify-content-md-end">
+          <div class="d-flex flex-wrap align-items-center gap-2 w-100 w-md-auto justify-content-between justify-content-md-end">
+            @if (permiteDetalhes()) {
               <span class="badge bg-warning text-dark fs-6 fw-bold px-3 py-2">
                 Saldo Total Disponível: {{ saldoTotalDisponivel() }} dias
               </span>
-              <div class="d-flex align-items-center gap-2">
+            }
+            <div class="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                [disabled]="loading()"
+                title="Ignorar cache e consultar novamente no mainframe"
+                (click)="atualizar.emit()">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Atualizar</span>
+              </button>
+              @if (permiteDetalhes()) {
                 <button
                   type="button"
                   class="btn btn-sm btn-outline-secondary"
@@ -62,9 +73,9 @@ export type FiltroFerias = 'pendentes' | 'todos';
                     <span>Detalhar ({{ totalSelecionados() }})</span>
                   </button>
                 }
-              </div>
+              }
             </div>
-          }
+          </div>
         </div>
 
         <!-- Seletor de Visualização da Tela de Férias: Somente Pendentes vs Todos os Registros Disponíveis -->
@@ -222,9 +233,9 @@ export type FiltroFerias = 'pendentes' | 'todos';
                   @if (permiteDetalhes()) {
                     <td class="text-center">
                       @if (item.status === 'P') {
-                        <span class="badge bg-warning text-dark fw-bold px-2 py-1">P (Pendente)</span>
-                      } @else if (item.status) {
-                        <span class="badge bg-secondary px-2 py-1">{{ item.status }}</span>
+                        <span class="badge bg-warning text-dark fw-bold px-2 py-1">Pendente</span>
+                      } @else if (item.status === 'NP') {
+                        <span class="badge bg-secondary px-2 py-1">Não Pendente </span>
                       } @else {
                         <span class="text-muted small">—</span>
                       }
@@ -297,6 +308,7 @@ export class ListaRegistrosComponent {
   readonly loading = input<boolean>(false);
 
   readonly confirmar = output<number[]>();
+  readonly atualizar = output<void>();
   readonly voltar = output<void>();
 
   readonly filtro = signal<FiltroFerias>('todos');

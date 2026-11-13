@@ -24,7 +24,8 @@ export interface RegistroItem {
   doc_tipo?: string | null;
   doc_numero?: string | null;
   doc_data?: string | null;
-  selecionado?: boolean; // Controle local da interface (Fase 2 em stand-by)
+  detalhes?: RegistroDetalhe[]; // Detalhes NC5F M13A pré-carregados na conexão única
+  selecionado?: boolean; // Controle local da interface
 }
 
 export interface PeriodoPendenteResumo {
@@ -39,6 +40,7 @@ export interface ConsultaRegistrosRequest {
   digito: string;
   sequencia: string;
   opcao_consulta: OpcaoConsultaCodigo;
+  forcar_atualizacao?: boolean;
 }
 
 export interface ConsultaRegistrosResponse {

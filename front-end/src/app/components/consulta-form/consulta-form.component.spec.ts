@@ -28,9 +28,9 @@ describe('ConsultaFormComponent', () => {
     expect(textosVisiveis).toEqual([
       'Escolha uma opção para consultar',
       'Tempo de serviço',
-      'Faltas',
+      'Faltas Registradas',
       'Férias',
-      'Licenças',
+      'Licenças Retiradas',
       'Punições e elogios',
     ]);
     expect(valoresEnviados).toEqual(['', '4', '9', '10', '13', '16']);

@@ -362,6 +362,7 @@ def acumular_linha_ferias(
             "rows": [row_idx] if pagina_atual == 1 else [],
             "targets": [{"page": pagina_atual, "row": row_idx}],
             "check_col": COLUNA_CHECKBOX_MARCAR,
+            "detalhes": [],
         }
     else:
         existente = por_periodo[chave]
@@ -470,15 +471,45 @@ def _parse_lista_consultas_simples_3270(
     return registros
 
 
+def _extrair_detalhes_pagina_ferias_3270(
+    driver: Base3270Driver,
+    encontrados: List[Tuple[int, int]],
+    por_periodo: Dict[Tuple[str, str], Dict[str, Any]],
+) -> None:
+    """
+    Marca todas as linhas de férias da página atual com 'X', navega pelas telas
+    NC5F M13A correspondentes e anexa cada detalhe ao período aquisitivo dono da linha.
+    """
+    por_indice = {int(item["indice"]): item for item in por_periodo.values()}
+    for row_idx, _ in encontrados:
+        driver.send_string(
+            CARACTERE_MARCACAO_REGISTRO,
+            row=row_idx,
+            col=COLUNA_CHECKBOX_MARCAR,
+        )
+
+    driver.send_enter()
+
+    for _, idx_periodo in encontrados:
+        driver.wait_for_string(GATILHO_TELA_DETALHE)
+        detalhe = parse_detalhe_registro_3270(driver)
+        alvo = por_indice.get(idx_periodo)
+        if alvo is not None:
+            alvo["detalhes"].append(detalhe)
+        driver.send_enter()
+
+
 # pylint: disable=too-many-locals
 def parse_lista_registros_3270(
     driver: Base3270Driver,
     opcao_consulta: str,
     paginar: bool = True,
+    incluir_detalhes: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Percorre todas as páginas da matriz 24x80 na tela de consulta:
-    - Na opção 10 (Férias / SPPC-CONFER): pagina com ENTER e consolida períodos aquisitivos.
+    - Na opção 10 (Férias / SPPC-CONFER): pagina com ENTER, consolida períodos aquisitivos
+      e, quando incluir_detalhes=True, já extrai todas as telas NC5F M13A na mesma conexão.
     - Nas opções 4, 9, 13 e 16: pagina com PF8 e extrai todas as linhas de registro.
     """
     if opcao_consulta.strip() != "10":
@@ -500,10 +531,22 @@ def parse_lista_registros_3270(
         paginas_vistas.add(fatia_tabela)
 
         encontrados = ler_linhas_ferias_pagina_3270(lines, por_periodo, pagina_atual)
-        if not paginar or not encontrados:
+        if not encontrados:
             break
 
-        avancar_pagina_3270(driver, opcao_consulta=opcao_consulta)
+        if incluir_detalhes:
+            _extrair_detalhes_pagina_ferias_3270(driver, encontrados, por_periodo)
+
+        if not paginar:
+            break
+
+        linhas_pos = driver.get_screen_lines()
+        fatia_pos = tuple(
+            linhas_pos[LINHA_INICIAL_REGISTROS - 1 : LINHA_FINAL_REGISTROS]
+        )
+        if not incluir_detalhes or fatia_pos == fatia_tabela:
+            avancar_pagina_3270(driver, opcao_consulta=opcao_consulta)
+
         pagina_atual += 1
         if driver.get_string(1, 1, 80).strip().startswith(PREFIXO_ERRO_TELA_SOLICITANTE):
             break
