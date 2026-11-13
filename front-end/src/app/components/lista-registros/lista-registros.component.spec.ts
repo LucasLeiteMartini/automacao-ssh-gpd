@@ -126,4 +126,45 @@ describe('ListaRegistrosComponent', () => {
     expect(listaComponent.totalSelecionados()).toBe(4);
     expect(listaComponent.todosSelecionados()).toBe(true);
   });
+
+  it('deve paginar em blocos de 10 registros por página e voltar à página 1 ao trocar filtro', () => {
+    const fixture = TestBed.createComponent(TestHostComponent);
+    const host = fixture.componentInstance;
+
+    const registros25 = Array.from({ length: 25 }, (_, i) => ({
+      indice: i + 1,
+      id: `Periodo ${i + 1}`,
+      descricao: `Registro ${i + 1}`,
+      dias_adquiridos: 30,
+      status: i < 12 ? 'P' : 'NP',
+      dias_utilizados: 0,
+      dias_utilizados_periodo: 0,
+      saldo_disponivel: i < 12 ? 30 : 0,
+    }));
+
+    host.dados.set({
+      ...host.dados(),
+      registros: registros25,
+    });
+    fixture.detectChanges();
+
+    const listaComponent = fixture.debugElement.children[0].componentInstance as ListaRegistrosComponent;
+
+    expect(listaComponent.totalPaginas()).toBe(3);
+    expect(listaComponent.paginaAtual()).toBe(1);
+    expect(listaComponent.itensPaginados().length).toBe(10);
+    expect(listaComponent.itensPaginados()[0].indice).toBe(1);
+
+    listaComponent.irParaPagina(3);
+    fixture.detectChanges();
+    expect(listaComponent.paginaAtual()).toBe(3);
+    expect(listaComponent.itensPaginados().length).toBe(5);
+    expect(listaComponent.itensPaginados()[0].indice).toBe(21);
+
+    listaComponent.setFiltro('pendentes');
+    fixture.detectChanges();
+    expect(listaComponent.paginaAtual()).toBe(1);
+    expect(listaComponent.totalPaginas()).toBe(2);
+    expect(listaComponent.itensPaginados().length).toBe(10);
+  });
 });

@@ -18,5 +18,5 @@ import { Component, input } from '@angular/core';
 })
 export class LoadingSpinnerComponent {
   readonly titulo = input<string>('Processando...');
-  readonly descricao = input<string>('Aguarde a resposta do terminal legado...');
+  readonly descricao = input<string>('Aguarde a resposta do Sistema...');
 }

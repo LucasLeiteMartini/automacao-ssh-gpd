@@ -84,9 +84,9 @@ export type FiltroFerias = 'pendentes' | 'todos';
                style="border-color: var(--border-color) !important;">
             <span class="text-muted small fw-semibold">
               <i class="bi bi-funnel me-1 text-warning"></i>
-              Exibição de Registros:
+              Filtro de Registros:
             </span>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de registros de férias">
+            <div class="btn-group btn-group-sm gap-10" role="group" aria-label="Filtro de registros de férias">
               <button
                 type="button"
                 class="btn"
@@ -111,7 +111,7 @@ export type FiltroFerias = 'pendentes' | 'todos';
       <!-- VISUALIZAÇÃO MOBILE (Cards Consolidados por Período Aquisitivo) -->
       <div class="d-md-none mb-4">
         <div class="d-flex flex-column gap-2">
-          @for (item of itensVisiveis(); track item.indice) {
+          @for (item of itensPaginados(); track item.indice) {
             <div
               class="custom-card p-3"
               [class.card-interactive]="permiteDetalhes()"
@@ -208,7 +208,7 @@ export type FiltroFerias = 'pendentes' | 'todos';
               </tr>
             </thead>
             <tbody>
-              @for (item of itensVisiveis(); track item.indice) {
+              @for (item of itensPaginados(); track item.indice) {
                 <tr
                   [style.cursor]="permiteDetalhes() ? 'pointer' : 'default'"
                   [class.table-active]="permiteDetalhes() && item.selecionado"
@@ -267,6 +267,45 @@ export type FiltroFerias = 'pendentes' | 'todos';
           </table>
         </div>
       </div>
+
+      <!-- PAGINAÇÃO (10 registros por página) -->
+      @if (totalPaginas() > 1) {
+        <div class="custom-card px-3 py-2 mb-4 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-2">
+          <span class="text-muted small">
+            Mostrando {{ intervaloExibido().inicio }}–{{ intervaloExibido().fim }} de {{ itensVisiveis().length }} registros
+            (Página {{ paginaAtual() }} de {{ totalPaginas() }})
+          </span>
+          <div class="d-flex align-items-center gap-1 flex-wrap justify-content-center">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              [disabled]="paginaAtual() <= 1"
+              (click)="irParaPagina(paginaAtual() - 1)">
+              <i class="bi bi-chevron-left"></i>
+              <span class="d-none d-sm-inline ms-1">Anterior</span>
+            </button>
+            @for (num of paginasDisponiveis(); track num) {
+              <button
+                type="button"
+                class="btn btn-sm"
+                [class.btn-warning]="paginaAtual() === num"
+                [class.fw-bold]="paginaAtual() === num"
+                [class.btn-outline-secondary]="paginaAtual() !== num"
+                (click)="irParaPagina(num)">
+                {{ num }}
+              </button>
+            }
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              [disabled]="paginaAtual() >= totalPaginas()"
+              (click)="irParaPagina(paginaAtual() + 1)">
+              <span class="d-none d-sm-inline me-1">Próxima</span>
+              <i class="bi bi-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      }
 
       <!-- BARRA DE AÇÃO NO FLUXO DA PÁGINA (Nova Consulta + Fase 2 apenas em Férias) -->
       <div class="sticky-bottom-action-bar">
@@ -343,6 +382,41 @@ export class ListaRegistrosComponent {
     }
     return todos;
   });
+
+  readonly itensPorPagina = 10;
+
+  readonly paginaAtual = linkedSignal<number>(() => {
+    this.dados();
+    this.filtro();
+    return 1;
+  });
+
+  readonly totalPaginas = computed<number>(() =>
+    Math.max(1, Math.ceil(this.itensVisiveis().length / this.itensPorPagina))
+  );
+
+  readonly paginasDisponiveis = computed<number[]>(() =>
+    Array.from({ length: this.totalPaginas() }, (_, i) => i + 1)
+  );
+
+  readonly itensPaginados = computed<RegistroItem[]>(() => {
+    const inicio = (this.paginaAtual() - 1) * this.itensPorPagina;
+    return this.itensVisiveis().slice(inicio, inicio + this.itensPorPagina);
+  });
+
+  readonly intervaloExibido = computed<{ inicio: number; fim: number }>(() => {
+    const total = this.itensVisiveis().length;
+    if (total === 0) return { inicio: 0, fim: 0 };
+    const inicio = (this.paginaAtual() - 1) * this.itensPorPagina + 1;
+    const fim = Math.min(total, this.paginaAtual() * this.itensPorPagina);
+    return { inicio, fim };
+  });
+
+  irParaPagina(pagina: number): void {
+    const limite = this.totalPaginas();
+    const destino = Math.min(Math.max(1, pagina), limite);
+    this.paginaAtual.set(destino);
+  }
 
   readonly saldoTotalDisponivel = computed<number>(() =>
     this.itensVisiveis().reduce((acc, item) => acc + (item.saldo_disponivel ?? 0), 0)

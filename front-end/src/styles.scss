@@ -11,10 +11,18 @@
   --primary-accent-hover: #d97706;
   --primary-accent-light: rgba(245, 158, 11, 0.15);
   --primary-accent-glow: rgba(245, 158, 11, 0.35);
-  
+
   --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --border-radius-base: 0.75rem;
   --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-group {
+  gap: 10px;
+}
+
+.btn-group>.btn {
+  border-radius: var(--border-radius-base) !important;
 }
 
 /* Tema Escuro (Preto profundo + Amarelo Dourado) */
@@ -37,7 +45,8 @@
     color: #000000;
     font-weight: 600;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
       background-color: #fbbf24;
       border-color: #fbbf24;
       color: #000000;
@@ -49,7 +58,8 @@
     color: #fbbf24;
     border-color: #f59e0b;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
       background-color: #f59e0b;
       border-color: #f59e0b;
       color: #000000;
@@ -77,7 +87,8 @@
     color: #ffffff;
     font-weight: 600;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
       background-color: #b45309;
       border-color: #b45309;
       color: #ffffff;
@@ -89,7 +100,8 @@
     color: #b45309;
     border-color: #d97706;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
       background-color: #d97706;
       border-color: #d97706;
       color: #ffffff;
@@ -101,7 +113,8 @@
    MOBILE-FIRST ENHANCEMENTS & UI UTILITIES
    ========================================================================== */
 
-html, body {
+html,
+body {
   font-family: var(--font-family-sans);
   min-height: 100%;
   margin: 0;
@@ -120,7 +133,9 @@ app-loading-spinner {
 }
 
 /* Evita auto-zoom incômodo em iOS quando o usuário clica em inputs */
-input, select, textarea {
+input,
+select,
+textarea {
   font-size: 16px !important;
 }
 
@@ -183,6 +198,7 @@ input, select, textarea {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }

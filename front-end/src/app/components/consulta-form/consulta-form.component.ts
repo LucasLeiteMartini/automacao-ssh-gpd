@@ -22,7 +22,7 @@ export interface OpcaoConsultaItem {
             <i class="bi bi-search text-warning"></i>
             <span>Consultar Registros do Solicitante</span>
           </h2>
-          <p class="text-muted small mb-0">Informe os dados cadastrais para consultar o terminal legado.</p>
+          <p class="text-muted small mb-0">Informe os dados cadastrais para consulta.</p>
         </div>
       </div>
 
@@ -102,7 +102,7 @@ export interface OpcaoConsultaItem {
           <!-- Sequência: 1 letra -->
           <div class="col-6 col-md-4">
             <label class="form-label small fw-semibold text-muted mb-1" for="sequencia">
-              Sequência (somente letras)
+              Sequência (letras A-Z)
             </label>
             <input
               id="sequencia"
